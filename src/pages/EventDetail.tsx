@@ -274,7 +274,7 @@ export function EventDetail() {
       }
 
       shareMessage += `\n${event.content}\n\n`;
-      shareMessage += `🔗 https://zather.app/event/${nevent}`;
+      shareMessage += `🔗 https://plektos.app/event/${nevent}`;
 
       // Add image if available
       const tags: [string, string][] = [];

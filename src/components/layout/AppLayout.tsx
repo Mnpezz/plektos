@@ -10,7 +10,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="container flex h-14 items-center">
           {/* Logo/Brand */}
           <Link to="/" className="mr-6 flex items-center space-x-2">
-            <span className="font-bold">Zather</span>
+            <span className="font-bold">Plektos</span>
           </Link>
 
           {/* Navigation Links */}

@@ -25,7 +25,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <NostrLoginProvider storageKey="zather-login">
+        <NostrLoginProvider storageKey="plektos-login">
           <NostrProvider
             relays={[
               "wss://relay.damus.io",

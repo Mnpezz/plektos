@@ -11,7 +11,7 @@ const queryClient = new QueryClient();
 
 export function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="zather-theme">
+    <ThemeProvider defaultTheme="system" storageKey="plektos-theme">
       <QueryClientProvider client={queryClient}>
         <Layout>
           <AppRouter />

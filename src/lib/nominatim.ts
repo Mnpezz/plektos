@@ -34,7 +34,7 @@ export async function searchLocations(
       {
         headers: {
           "Accept-Language": "en-US,en;q=0.9",
-          "User-Agent": "Zather/1.0",
+          "User-Agent": "Plektos/1.0",
         },
       }
     );

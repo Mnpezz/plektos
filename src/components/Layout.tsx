@@ -15,7 +15,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="container flex h-14 items-center">
           <div className="mr-4 flex">
             <a className="mr-6 flex items-center space-x-2" href="/">
-              <span className="font-bold">Zather</span>
+              <span className="font-bold">Plektos</span>
             </a>
             <nav className="flex items-center space-x-6 text-sm font-medium">
               <Link
