@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="SVG to PNG converter for Zather app icons"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SVG to PNG Converter" />
+    <meta
+      property="og:description"
+      content="SVG to PNG converter for Zather app icons"
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Convert SVG to PNG</title>
+  </head>
+  <body>
+    <canvas id="canvas" width="512" height="512" style="display: none"></canvas>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Load the SVG
+      const img = new Image();
+      img.onload = function () {
+        // Function to save canvas as PNG
+        function saveAsPNG(size) {
+          canvas.width = size;
+          canvas.height = size;
+          ctx.drawImage(img, 0, 0, size, size);
+
+          const link = document.createElement("a");
+          link.download = `icon-${size}.png`;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        }
+
+        // Generate all required sizes
+        saveAsPNG(512); // PWA icon
+        saveAsPNG(192); // PWA icon
+        saveAsPNG(180); // Apple touch icon
+        saveAsPNG(32); // Favicon
+        saveAsPNG(16); // Small favicon
+      };
+      img.src = "icon.svg";
+    </script>
+  </body>
+</html>

@@ -1,21 +1,16 @@
-import { lazy } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { ScrollToTop } from "./components/ScrollToTop";
+import { Routes, Route } from "react-router-dom";
+import { Home } from "@/pages/Home";
+import { EventDetail } from "@/pages/EventDetail";
+import { CreateEvent } from "@/pages/CreateEvent";
+import { Profile } from "@/pages/Profile";
 
-// Lazy load page components
-const Index = lazy(() => import("./pages/Index"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-
-export function AppRouter() {
+export default function AppRouter() {
   return (
-    <BrowserRouter>
-      <ScrollToTop />
-      <Routes>
-        <Route path="/" element={<Index />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/event/:eventId" element={<EventDetail />} />
+      <Route path="/create" element={<CreateEvent />} />
+      <Route path="/profile/:npub" element={<Profile />} />
+    </Routes>
   );
 }
-export default AppRouter;
