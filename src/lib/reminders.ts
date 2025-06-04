@@ -1,6 +1,5 @@
 import type { DateBasedEvent, TimeBasedEvent } from "./eventTypes";
-import { useNostrPublish } from "@/hooks/useNostrPublish";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useDirectMessage } from "@/hooks/useDirectMessage";
 
 export interface Reminder {
   eventId: string;
@@ -10,37 +9,19 @@ export interface Reminder {
 }
 
 export function useReminders(event: DateBasedEvent | TimeBasedEvent) {
-  const { mutate: publishEvent } = useNostrPublish();
-  const { user } = useCurrentUser();
+  const { sendDirectMessage } = useDirectMessage();
 
   const sendReminder = async (recipientPubkey: string, message: string) => {
-    if (!user?.signer.nip44) {
-      throw new Error("Your signer does not support NIP-44 encryption");
-    }
-
-    // Encrypt the reminder message
-    const encryptedMessage = await user.signer.nip44.encrypt(
-      recipientPubkey,
-      message
-    );
-
-    // Create a reminder event (kind 1059)
-    await publishEvent({
-      kind: 1059,
-      content: encryptedMessage,
-      tags: [
-        ["e", event.id], // Reference to the event
-        ["p", recipientPubkey], // Recipient's pubkey
-      ],
-    });
+    // Add event context to the reminder message
+    const eventTitle = event.tags.find((tag) => tag[0] === "title")?.[1] || "Event";
+    const contextualMessage = `📅 Event Reminder: ${eventTitle}\n\n${message}`;
+    
+    // Use the NIP-17 Direct Message system for reminders
+    await sendDirectMessage(recipientPubkey, contextualMessage);
   };
 
   const sendBulkReminders = async (recipients: string[], message: string) => {
-    if (!user?.signer.nip44) {
-      throw new Error("Your signer does not support NIP-44 encryption");
-    }
-
-    // Send reminders to all recipients
+    // Send reminders to all recipients using NIP-17 DMs
     await Promise.all(
       recipients.map((recipient) => sendReminder(recipient, message))
     );

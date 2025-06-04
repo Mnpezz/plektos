@@ -31,6 +31,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DeleteEvent } from "@/components/DeleteEvent";
 import { useZap } from "@/hooks/useZap";
 import { ZapReceipts } from "@/components/ZapReceipts";
+import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
+import { EventComments } from "@/components/EventComments";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -321,16 +323,22 @@ export function EventDetail() {
               <EventAuthor pubkey={event.pubkey} />
             </div>
             {user && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShareEvent}
-                disabled={isSharing}
-                className="flex items-center gap-2 self-start sm:self-auto"
-              >
-                <Share2 className="h-4 w-4" />
-                {isSharing ? "Sharing..." : "Share Event"}
-              </Button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <ContactOrganizerDialog 
+                  organizerPubkey={event.pubkey}
+                  eventTitle={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShareEvent}
+                  disabled={isSharing}
+                  className="flex items-center gap-2"
+                >
+                  <Share2 className="h-4 w-4" />
+                  {isSharing ? "Sharing..." : "Share Event"}
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -547,8 +555,12 @@ export function EventDetail() {
           )}
 
           {event && (
-            <div className="mt-8">
+            <div className="space-y-8">
               <ZapReceipts eventId={event.id} eventPubkey={event.pubkey} />
+              <EventComments 
+                eventId={event.id} 
+                eventTitle={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"} 
+              />
             </div>
           )}
         </CardContent>
