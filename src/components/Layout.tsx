@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -8,6 +8,15 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user } = useCurrentUser();
+  const location = useLocation();
+
+  const handleDiscoverClick = (e: React.MouseEvent) => {
+    // If we're already on the home page, scroll to top
+    if (location.pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 to="/"
                 className="transition-colors hover:text-foreground/80"
+                onClick={handleDiscoverClick}
               >
                 Discover
               </Link>
