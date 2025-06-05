@@ -9,7 +9,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { nip19 } from "nostr-tools";
+import { createEventIdentifier } from "@/lib/nip19Utils";
 import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -421,14 +421,10 @@ export function Home() {
               (tag) => tag[0] === "location"
             )?.[1];
             const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
-            const nevent = nip19.neventEncode({
-              id: event.id,
-              kind: event.kind,
-              author: event.pubkey,
-            });
+            const eventIdentifier = createEventIdentifier(event);
 
             return (
-              <Link key={event.id} to={`/event/${nevent}`}>
+              <Link key={event.id} to={`/event/${eventIdentifier}`}>
                 <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
                   {imageUrl && (
                     <div className="aspect-video w-full overflow-hidden">

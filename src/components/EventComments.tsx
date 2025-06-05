@@ -10,9 +10,18 @@ import { toast } from "sonner";
 interface EventCommentsProps {
   eventId: string;
   eventTitle: string;
+  eventKind?: number;
+  eventPubkey?: string;
+  eventIdentifier?: string; // the "d" tag value for replaceable events
 }
 
-export function EventComments({ eventId, eventTitle }: EventCommentsProps) {
+export function EventComments({ 
+  eventId, 
+  eventTitle, 
+  eventKind, 
+  eventPubkey, 
+  eventIdentifier 
+}: EventCommentsProps) {
   const [newComment, setNewComment] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   
@@ -24,7 +33,7 @@ export function EventComments({ eventId, eventTitle }: EventCommentsProps) {
     likeComment,
     getLikeCount,
     hasUserLiked,
-  } = useEventComments(eventId);
+  } = useEventComments(eventId, eventKind, eventPubkey, eventIdentifier);
 
   const handlePostComment = async () => {
     if (!newComment.trim() || !user) return;

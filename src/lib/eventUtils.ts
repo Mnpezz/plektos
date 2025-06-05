@@ -52,12 +52,52 @@ export function useEvents() {
           }))
         );
 
+        // For replaceable events (31922, 31923), only keep the latest version of each coordinate
+        const deduplicated = typedEvents.reduce((acc, event) => {
+          // For RSVP events (31925), keep all of them as they're not replaceable per se
+          if (event.kind === 31925) {
+            acc.push(event);
+            return acc;
+          }
+
+          // For replaceable calendar events (31922, 31923)
+          if (event.kind === 31922 || event.kind === 31923) {
+            const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
+            if (!dTag) {
+              // Skip events without d tag
+              return acc;
+            }
+            const existingEvent = acc.find(e => {
+              if (e.kind !== event.kind || e.pubkey !== event.pubkey) return false;
+              const existingDTag = e.tags.find(tag => tag[0] === 'd')?.[1];
+              return existingDTag === dTag;
+            });
+
+            if (!existingEvent) {
+              // First time seeing this coordinate, add the event
+              acc.push(event);
+            } else if (event.created_at > existingEvent.created_at) {
+              // This is a newer version, replace the existing one
+              const index = acc.indexOf(existingEvent);
+              acc[index] = event;
+            }
+            // If existing is newer, keep it and skip this one
+            return acc;
+          }
+
+          // For any other event types, just add them
+          acc.push(event);
+          return acc;
+        }, [] as (DateBasedEvent | TimeBasedEvent | EventRSVP)[]);
+
+        console.log("Deduplicated events:", deduplicated.length, "events");
+
         // Cache events in IndexedDB
-        for (const event of typedEvents) {
+        for (const event of deduplicated) {
           await cacheEvent(event);
         }
 
-        return typedEvents;
+        return deduplicated;
       } catch (error) {
         console.error("Error fetching events:", error);
         throw error;

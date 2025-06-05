@@ -14,22 +14,38 @@ interface TicketInfo {
 
 interface PaidTicketFormProps {
   onTicketInfoChange: (ticketInfo: TicketInfo) => void;
+  initialTicketInfo?: TicketInfo;
 }
 
-export function PaidTicketForm({ onTicketInfoChange }: PaidTicketFormProps) {
+export function PaidTicketForm({ onTicketInfoChange, initialTicketInfo }: PaidTicketFormProps) {
   const { user } = useCurrentUser();
   const author = useAuthor(user?.pubkey);
-  const [ticketInfo, setTicketInfo] = useState<TicketInfo>({
-    enabled: false,
-    price: 0,
-    lightningAddress: "",
+  const [ticketInfo, setTicketInfo] = useState<TicketInfo>(
+    initialTicketInfo || {
+      enabled: false,
+      price: 0,
+      lightningAddress: "",
+    }
+  );
+  const [useDefaultAddress, setUseDefaultAddress] = useState(() => {
+    // If we have initial ticket info with a lightning address, check if it matches the default
+    if (initialTicketInfo?.lightningAddress) {
+      return false; // Start with false and let the effect handle it
+    }
+    return true;
   });
-  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
   const [error, setError] = useState("");
 
   // Get the user's default lightning address from their profile
   const defaultLightningAddress =
     author.data?.metadata?.lud16 || author.data?.metadata?.lud06 || "";
+
+  // Handle initial state for editing existing events
+  useEffect(() => {
+    if (initialTicketInfo?.lightningAddress && defaultLightningAddress) {
+      setUseDefaultAddress(initialTicketInfo.lightningAddress === defaultLightningAddress);
+    }
+  }, [initialTicketInfo?.lightningAddress, defaultLightningAddress]);
 
   useEffect(() => {
     if (useDefaultAddress && defaultLightningAddress) {

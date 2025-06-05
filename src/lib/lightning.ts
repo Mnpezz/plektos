@@ -1,4 +1,5 @@
 import type { DateBasedEvent, TimeBasedEvent } from "./eventTypes";
+import { createEventUrl } from "./nip19Utils";
 
 interface LightningInvoice {
   pr: string; // Payment request
@@ -40,7 +41,7 @@ export async function generateLightningInvoice(
       successAction: {
         tag: "url",
         description: "View event details",
-        url: `https://plektos.app/event/${event.id}`,
+        url: createEventUrl(event, "https://plektos.app"),
       },
     }),
   });

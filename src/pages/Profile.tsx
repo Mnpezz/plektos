@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useNostr } from "@nostrify/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthor } from "@/hooks/useAuthor";
+import { createEventIdentifier } from "@/lib/nip19Utils";
 import { nip19 } from "nostr-tools";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -146,17 +147,13 @@ export function Profile() {
                   const title =
                     event.tags.find((tag) => tag[0] === "title")?.[1] ||
                     "Untitled";
-                  const nevent = nip19.neventEncode({
-                    id: event.id,
-                    kind: event.kind,
-                    author: event.pubkey,
-                  });
+                  const eventIdentifier = createEventIdentifier(event);
 
                   return (
                     <Card key={event.id}>
                       <CardContent className="pt-6">
                         <Link
-                          to={`/event/${nevent}`}
+                          to={`/event/${eventIdentifier}`}
                           className="block hover:opacity-80 transition-opacity"
                         >
                           <h4 className="font-medium mb-2">{title}</h4>
@@ -193,11 +190,7 @@ export function Profile() {
                   const startTime = event.tags.find(
                     (tag) => tag[0] === "start"
                   )?.[1];
-                  const nevent = nip19.neventEncode({
-                    id: event.id,
-                    kind: event.kind,
-                    author: event.pubkey,
-                  });
+                  const eventIdentifier = createEventIdentifier(event);
 
                   return (
                     <Card key={rsvp.id}>
@@ -221,7 +214,7 @@ export function Profile() {
                           </Badge>
                         </div>
                         <Link
-                          to={`/event/${nevent}`}
+                          to={`/event/${eventIdentifier}`}
                           className="block hover:opacity-80 transition-opacity"
                         >
                           <h4 className="font-medium mb-2">{title}</h4>

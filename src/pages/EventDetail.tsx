@@ -29,12 +29,14 @@ import type {
 import { nip19 } from "nostr-tools";
 import { useQueryClient } from "@tanstack/react-query";
 import { DeleteEvent } from "@/components/DeleteEvent";
+import { EditEvent } from "@/components/EditEvent";
 import { useZap } from "@/hooks/useZap";
 import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
 import { EventComments } from "@/components/EventComments";
 import { EventCategories } from "@/components/EventCategories";
 import { downloadICS } from "@/lib/icsExport";
+import { decodeEventIdentifier, createEventUrl } from "@/lib/nip19Utils";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -90,7 +92,7 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { data: events, isLoading } = useEvents();
+  const { data: events, isLoading, refetch: refetchEvents } = useEvents();
   const { user } = useCurrentUser();
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const { mutate: publishRSVP } = useNostrPublish();
@@ -101,35 +103,71 @@ export function EventDetail() {
   const [rsvpNote, setRsvpNote] = useState("");
   const [isSubmittingRSVP, setIsSubmittingRSVP] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { zap } = useZap();
 
-  // Decode the nevent address
-  let eventIdFromNevent: string | undefined;
+  // Enhanced event update handler with proper refresh
+  const handleEventUpdated = async () => {
+    setIsRefreshing(true);
+    try {
+      // Invalidate all related queries
+      await queryClient.invalidateQueries({ queryKey: ["events"] });
+      await queryClient.invalidateQueries({ queryKey: ["comments"] });
+      await queryClient.invalidateQueries({ queryKey: ["reactions"] });
+      
+      // Force a refetch of events
+      await refetchEvents();
+      
+      toast.success("Event details refreshed!");
+    } catch (error) {
+      console.error("Error refreshing event data:", error);
+      toast.error("Could not refresh event details");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Decode the event identifier (supports both naddr and nevent)
+  let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
+  let eventIdFromIdentifier: string | undefined;
+  
   try {
-    if (eventId?.startsWith("nevent")) {
-      const decoded = nip19.decode(eventId);
-      if (decoded.type === "nevent") {
-        eventIdFromNevent = decoded.data.id;
-      }
-    } else {
-      eventIdFromNevent = eventId;
+    if (!eventId) {
+      return <div>No event identifier provided</div>;
+    }
+
+    const decodedEvent = decodeEventIdentifier(eventId);
+    
+    if (decodedEvent.type === 'naddr') {
+      // For replaceable events, find by coordinate (kind:pubkey:d)
+      const { kind, pubkey, identifier } = decodedEvent.data;
+      targetEvent = events.find((e) => 
+        e.kind === kind && 
+        e.pubkey === pubkey && 
+        e.tags.some(tag => tag[0] === 'd' && tag[1] === identifier)
+      ) as DateBasedEvent | TimeBasedEvent | null;
+      
+      // Store the event ID for RSVP filtering
+      eventIdFromIdentifier = targetEvent?.id;
+    } else if (decodedEvent.type === 'nevent' || decodedEvent.type === 'note' || decodedEvent.type === 'raw') {
+      // For regular events, find by event ID
+      const eventId = decodedEvent.type === 'raw' ? decodedEvent.data : 
+                     decodedEvent.type === 'note' ? decodedEvent.data :
+                     decodedEvent.data.id;
+      targetEvent = events.find((e) => e.id === eventId) as DateBasedEvent | TimeBasedEvent | null;
+      eventIdFromIdentifier = eventId;
     }
   } catch (error) {
-    console.error("Error decoding nevent:", error);
+    console.error("Error decoding event identifier:", error);
     return <div>Invalid event address</div>;
   }
 
-  // Find the event and participants directly from the events array
-  const event =
-    (events.find((e) => e.id === eventIdFromNevent) as
-      | DateBasedEvent
-      | TimeBasedEvent
-      | null) || null;
+  const event = targetEvent;
 
-  if (isLoading) {
-    return <div>Loading event...</div>;
+  if (isLoading || isRefreshing) {
+    return <div>{isRefreshing ? "Refreshing event details..." : "Loading event..."}</div>;
   }
 
   if (!event) {
@@ -140,7 +178,7 @@ export function EventDetail() {
   const rsvpEvents = events
     .filter((e): e is EventRSVP => e.kind === 31925)
     .filter((e) =>
-      e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromNevent)
+      e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier)
     );
 
   // Get most recent RSVP for each user
@@ -258,13 +296,6 @@ export function EventDetail() {
       const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
       const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
 
-      // Create nevent address
-      const nevent = nip19.neventEncode({
-        id: event.id,
-        kind: event.kind,
-        author: event.pubkey,
-      });
-
       // Construct the share message
       let shareMessage = `🎉 Join me at ${title}!\n\n`;
 
@@ -300,7 +331,9 @@ export function EventDetail() {
       }
 
       shareMessage += `\n${event.content}\n\n`;
-      shareMessage += `🔗 https://plektos.app/event/${nevent}`;
+      
+      // Create the appropriate identifier (naddr for replaceable events, nevent for regular events)
+      shareMessage += `🔗 ${createEventUrl(event, 'https://plektos.app')}`;
 
       // Add image if available
       const tags: [string, string][] = [];
@@ -729,13 +762,20 @@ export function EventDetail() {
                 eventTitle={
                   event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"
                 }
+                eventKind={event.kind}
+                eventPubkey={event.pubkey}
+                eventIdentifier={eventIdentifier}
               />
             </div>
           )}
         </CardContent>
       </Card>
       {user && user.pubkey === event.pubkey && (
-        <div className="mt-4">
+        <div className="mt-4 flex gap-2">
+          <EditEvent 
+            event={event} 
+            onEventUpdated={handleEventUpdated}
+          />
           <DeleteEvent
             eventId={event.id}
             eventKind={event.kind}

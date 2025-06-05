@@ -12,11 +12,22 @@ interface ReactionEvent extends NostrEvent {
   kind: 7;
 }
 
-export function useEventComments(eventId: string) {
+export function useEventComments(
+  eventId: string, 
+  eventKind?: number, 
+  eventPubkey?: string, 
+  eventIdentifier?: string
+) {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
   const { mutateAsync: publishEvent } = useNostrPublish();
   const queryClient = useQueryClient();
+
+  // Determine if this is a replaceable event
+  const isReplaceable = eventKind ? eventKind >= 30000 && eventKind < 40000 : false;
+  const eventCoordinate = isReplaceable && eventKind && eventPubkey && eventIdentifier 
+    ? `${eventKind}:${eventPubkey}:${eventIdentifier}` 
+    : undefined;
 
   // Fetch comments for the event
   const {
@@ -24,21 +35,46 @@ export function useEventComments(eventId: string) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["comments", eventId],
+    queryKey: ["comments", eventId, eventCoordinate],
     queryFn: async ({ signal }) => {
+      // For replaceable events, query both by event ID and coordinate
+      const filters: Array<{
+        kinds: number[]; 
+        "#e"?: string[];
+        "#a"?: string[];
+        limit: number;
+      }> = [
+        {
+          kinds: [1111], // NIP-22 comment events
+          "#e": [eventId],
+          limit: 100,
+        }
+      ];
+
+      // For replaceable events, also query by coordinate
+      if (eventCoordinate) {
+        filters.push({
+          kinds: [1111],
+          "#a": [eventCoordinate],
+          limit: 100,
+        });
+      }
+
       const events = await nostr.query(
-        [
-          {
-            kinds: [1111], // NIP-22 comment events
-            "#e": [eventId],
-            limit: 100,
-          },
-        ],
+        filters,
         { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
       );
 
+      // Deduplicate comments (in case a comment has both e and a tags)
+      const uniqueComments = events.reduce((acc, event) => {
+        if (!acc.find((c) => c.id === event.id)) {
+          acc.push(event);
+        }
+        return acc;
+      }, [] as NostrEvent[]);
+
       // Sort comments by creation time
-      return events.sort((a, b) => a.created_at - b.created_at) as CommentEvent[];
+      return uniqueComments.sort((a, b) => a.created_at - b.created_at) as CommentEvent[];
     },
     enabled: !!eventId,
   });
@@ -48,7 +84,7 @@ export function useEventComments(eventId: string) {
   const {
     data: reactions = [],
   } = useQuery({
-    queryKey: ["reactions", ...commentIds],
+    queryKey: ["reactions", eventId, eventCoordinate, ...commentIds],
     queryFn: async ({ signal }) => {
       if (commentIds.length === 0) return [];
       
@@ -79,26 +115,55 @@ export function useEventComments(eventId: string) {
       id: `temp-${Date.now()}`, // Temporary ID
       kind: 1111,
       content,
-      tags: [["e", eventId]],
+      tags: isReplaceable && eventCoordinate 
+        ? [
+            ["e", eventId], // Reference to specific event ID
+            ["a", eventCoordinate], // Reference to replaceable event coordinate
+            ["E", eventId], // Root reference (NIP-10)
+            ["A", eventCoordinate], // Addressable root reference
+            ["k", eventKind!.toString()], // Event kind being commented on
+          ]
+        : [
+            ["e", eventId],
+            ["E", eventId], // Root reference (NIP-10)
+            ["k", eventKind?.toString() || "1"], // Default to kind 1 if not specified
+          ],
       created_at: Math.floor(Date.now() / 1000),
       pubkey: user.pubkey,
       sig: "temp-sig", // Temporary signature
     };
 
     // Optimistically update comments
-    const commentsQueryKey = ["comments", eventId];
+    const commentsQueryKey = ["comments", eventId, eventCoordinate];
     queryClient.setQueryData(commentsQueryKey, (oldComments: CommentEvent[] = []) => {
       return [...oldComments, optimisticComment].sort((a, b) => a.created_at - b.created_at);
     });
 
     try {
-      // Publish the actual comment
+      // Publish the actual comment with proper NIP-22 tagging
+      const tags: string[][] = isReplaceable && eventCoordinate 
+        ? [
+            ["e", eventId], // Reference to specific event ID
+            ["a", eventCoordinate], // Reference to replaceable event coordinate  
+            ["E", eventId], // Root reference (NIP-10)
+            ["A", eventCoordinate], // Addressable root reference
+            ["k", eventKind!.toString()], // Event kind being commented on
+          ]
+        : [
+            ["e", eventId],
+            ["E", eventId], // Root reference (NIP-10)
+            ["k", eventKind?.toString() || "1"], // Default to kind 1 if not specified
+          ];
+
+      // Add author reference if available
+      if (eventPubkey) {
+        tags.push(["p", eventPubkey]);
+      }
+
       await publishEvent({
         kind: 1111,
         content,
-        tags: [
-          ["e", eventId],
-        ],
+        tags,
       });
 
       // Invalidate and refetch to get the real comment with proper ID and signature
@@ -146,7 +211,7 @@ export function useEventComments(eventId: string) {
     };
 
     // Optimistically update reactions
-    const reactionsQueryKey = ["reactions", ...commentIds];
+    const reactionsQueryKey = ["reactions", eventId, eventCoordinate, ...commentIds];
     queryClient.setQueryData(reactionsQueryKey, (oldReactions: ReactionEvent[] = []) => {
       return [...oldReactions, optimisticReaction];
     });
