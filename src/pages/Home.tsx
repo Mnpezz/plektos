@@ -244,8 +244,8 @@ export function Home() {
   console.log("Rendering events:", calendarEvents);
 
   return (
-    <div className="container px-4 py-6 space-y-6">
-      <div>
+    <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+      <div className="px-3 sm:px-0">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
           Discover Events
         </h1>
@@ -255,14 +255,14 @@ export function Home() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className="rounded-none sm:rounded-lg">
         <Collapsible
           open={isFiltersOpen}
           onOpenChange={setIsFiltersOpen}
           className="w-full"
         >
           <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
                 <span className="font-medium">Filters</span>
@@ -297,8 +297,8 @@ export function Home() {
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="p-4 pt-0 space-y-4">
-              <div className="flex flex-col gap-4">
+            <CardContent className="p-3 sm:p-4 pt-0 space-y-3 sm:space-y-4">
+              <div className="flex flex-col gap-3 sm:gap-4">
                 {/* Location Filter */}
                 <div className="flex-1">
                   <div className="relative">
@@ -315,7 +315,7 @@ export function Home() {
                 {/* Category Filter */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Categories</Label>
-                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                  <div className="flex flex-wrap gap-1 sm:gap-2 max-h-32 overflow-y-auto">
                     {EVENT_CATEGORIES.map((category) => (
                       <Button
                         key={category}
@@ -350,7 +350,7 @@ export function Home() {
                   )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   {/* Date Range */}
                   <div className="flex gap-2">
                     <Popover>
@@ -407,11 +407,11 @@ export function Home() {
       </Card>
 
       {calendarEvents?.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="text-center py-8 sm:py-12">
           <p className="text-muted-foreground">No events found</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {calendarEvents?.map((event) => {
             const title =
               event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
@@ -429,7 +429,7 @@ export function Home() {
 
             return (
               <Link key={event.id} to={`/event/${nevent}`}>
-                <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden">
+                <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
                   {imageUrl && (
                     <div className="aspect-video w-full overflow-hidden">
                       <img
@@ -439,7 +439,7 @@ export function Home() {
                       />
                     </div>
                   )}
-                  <CardHeader className="p-4 sm:p-6">
+                  <CardHeader className="p-3 sm:p-6">
                     <CardTitle className="text-lg sm:text-xl line-clamp-2">
                       {title}
                     </CardTitle>
@@ -559,7 +559,7 @@ export function Home() {
                       </CardDescription>
                     )}
                   </CardHeader>
-                  <CardContent className="p-4 sm:p-6 pt-0">
+                  <CardContent className="p-3 sm:p-6 pt-0">
                     <p className="line-clamp-2 text-sm text-muted-foreground">
                       {description}
                     </p>

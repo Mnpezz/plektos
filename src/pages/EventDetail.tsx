@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Share2 } from "lucide-react";
+import { Share2, Calendar } from "lucide-react";
 import { RSVPAvatars } from "@/components/RSVPAvatars";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type {
@@ -34,6 +34,7 @@ import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
 import { EventComments } from "@/components/EventComments";
 import { EventCategories } from "@/components/EventCategories";
+import { downloadICS } from "@/lib/icsExport";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -313,8 +314,8 @@ export function EventDetail() {
   };
 
   return (
-    <div className="container max-w-4xl px-2 sm:px-4 py-4 sm:py-8">
-      <Card>
+    <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+      <Card className="rounded-none sm:rounded-lg">
         {imageUrl && (
           <div className="aspect-video w-full overflow-hidden">
             <img
@@ -327,16 +328,16 @@ export function EventDetail() {
             />
           </div>
         )}
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-2">
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+            <div className="space-y-1 sm:space-y-2">
               <CardTitle>
                 {event.tags.find((tag) => tag[0] === "title")?.[1]}
               </CardTitle>
               <EventAuthor pubkey={event.pubkey} />
             </div>
             {user && (
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="flex items-center gap-1 sm:gap-2 self-start sm:self-auto">
                 <ContactOrganizerDialog
                   organizerPubkey={event.pubkey}
                   eventTitle={
@@ -346,18 +347,27 @@ export function EventDetail() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => downloadICS(event)}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
+                >
+                  <Calendar className="h-4 w-4" />
+                  Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleShareEvent}
                   disabled={isSharing}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
                 >
                   <Share2 className="h-4 w-4" />
-                  {isSharing ? "Sharing..." : "Share Event"}
+                  {isSharing ? "..." : "Share"}
                 </Button>
               </div>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-4">
           <div>
             <h3 className="font-semibold">Description</h3>
             <p className="text-muted-foreground">{event.content}</p>

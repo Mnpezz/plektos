@@ -14,11 +14,11 @@ export function Layout({ children }: LayoutProps) {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">
           <div className="mr-4 flex">
-            <Link to="/" className="mr-6 flex items-center space-x-2">
+            <Link to="/" className="mr-8 sm:mr-10 flex items-center space-x-2">
               <img src="/icon.svg" alt="Plektos" className="h-6 w-6" />
               <span className="font-bold">Plektos</span>
             </Link>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
+            <nav className="flex items-center space-x-4 sm:space-x-6 text-sm font-medium">
               <Link
                 to="/"
                 className="transition-colors hover:text-foreground/80"

@@ -15,7 +15,7 @@ import { useDirectMessage } from "@/hooks/useDirectMessage";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageCircle, Lock } from "lucide-react";
+import { MessageCircle, Lock, MessageSquare } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ContactOrganizerDialogProps {
@@ -30,13 +30,16 @@ export function ContactOrganizerDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  
+
   const { user } = useCurrentUser();
   const { sendDirectMessage } = useDirectMessage();
   const organizer = useAuthor(organizerPubkey);
-  
+
   const organizerMetadata = organizer.data?.metadata;
-  const organizerName = organizerMetadata?.name || organizerMetadata?.display_name || organizerPubkey.slice(0, 8);
+  const organizerName =
+    organizerMetadata?.name ||
+    organizerMetadata?.display_name ||
+    organizerPubkey.slice(0, 8);
   const organizerImage = organizerMetadata?.picture;
 
   const handleSendMessage = async () => {
@@ -66,7 +69,12 @@ export function ContactOrganizerDialog({
 
   if (!user) {
     return (
-      <Button disabled size="sm" variant="outline" className="flex items-center gap-2">
+      <Button
+        disabled
+        size="sm"
+        variant="outline"
+        className="flex items-center gap-2"
+      >
         <MessageCircle className="h-4 w-4" />
         Contact Organizer
       </Button>
@@ -81,9 +89,9 @@ export function ContactOrganizerDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4" />
-          Contact Organizer
+        <Button variant="outline" size="sm" className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          Contact
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -96,7 +104,7 @@ export function ContactOrganizerDialog({
             Send a secure, encrypted direct message to the event organizer.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           {/* Organizer info */}
           <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -114,7 +122,8 @@ export function ContactOrganizerDialog({
           <Alert>
             <Lock className="h-4 w-4" />
             <AlertDescription>
-              This message will be encrypted using NIP-17 and only visible to you and the organizer.
+              This message will be encrypted using NIP-17 and only visible to
+              you and the organizer.
             </AlertDescription>
           </Alert>
 
@@ -131,7 +140,8 @@ export function ContactOrganizerDialog({
               disabled={isSending}
             />
             <p className="text-xs text-muted-foreground">
-              Press Ctrl+Enter to send • Your message will automatically include the event title for context
+              Press Ctrl+Enter to send • Your message will automatically include
+              the event title for context
             </p>
           </div>
         </div>
