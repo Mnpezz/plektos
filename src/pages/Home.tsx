@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge";
+import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
 
 export function Home() {
   console.log("Home component rendering");
@@ -38,6 +39,7 @@ export function Home() {
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [locationFilter, setLocationFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>([]);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter events based on all criteria
@@ -69,6 +71,17 @@ export function Home() {
         if (!location.includes(locationFilter.toLowerCase())) return false;
       }
 
+      // Filter by categories
+      if (selectedCategories.length > 0) {
+        const eventCategories = event.tags
+          .filter((tag) => tag[0] === "t")
+          .map((tag) => tag[1]);
+        const hasMatchingCategory = selectedCategories.some((category) =>
+          eventCategories.includes(category)
+        );
+        if (!hasMatchingCategory) return false;
+      }
+
       return true;
     })
     ?.sort((a, b) => {
@@ -83,9 +96,10 @@ export function Home() {
     setShowPastEvents(false);
     setLocationFilter("");
     setDateRange(undefined);
+    setSelectedCategories([]);
   };
 
-  const hasActiveFilters = locationFilter || dateRange || showPastEvents;
+  const hasActiveFilters = locationFilter || dateRange || showPastEvents || selectedCategories.length > 0;
 
   useEffect(() => {
     console.log("Home component mounted");
@@ -122,43 +136,44 @@ export function Home() {
           onOpenChange={setIsFiltersOpen}
           className="w-full"
         >
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              <span className="font-medium">Filters</span>
-              {hasActiveFilters && (
-                <Badge variant="secondary" className="ml-2">
-                  Active
-                </Badge>
-              )}
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                <span className="font-medium">Filters</span>
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-2">
+                    Active
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the CollapsibleTrigger
+                      clearFilters();
+                    }}
+                    className="h-8 px-2"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isFiltersOpen && "transform rotate-180"
+                  )}
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="h-8 px-2"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-              )}
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-2">
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform duration-200",
-                      isFiltersOpen && "transform rotate-180"
-                    )}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-          </div>
+          </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="p-4 pt-0 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col gap-4">
                 {/* Location Filter */}
                 <div className="flex-1">
                   <div className="relative">
@@ -172,53 +187,90 @@ export function Home() {
                   </div>
                 </div>
 
-                {/* Date Range */}
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
+                {/* Category Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Categories</Label>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                    {EVENT_CATEGORIES.map((category) => (
                       <Button
-                        variant="outline"
-                        className={cn(
-                          "justify-start text-left font-normal",
-                          !dateRange?.from && "text-muted-foreground"
-                        )}
+                        key={category}
+                        variant={
+                          selectedCategories.includes(category)
+                            ? "default"
+                            : "outline"
+                        }
+                        size="sm"
+                        className="h-auto py-1 px-2 text-xs"
+                        onClick={() => {
+                          if (selectedCategories.includes(category)) {
+                            setSelectedCategories(
+                              selectedCategories.filter((c) => c !== category)
+                            );
+                          } else {
+                            setSelectedCategories([...selectedCategories, category]);
+                          }
+                        }}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateRange?.from ? (
-                          dateRange.to ? (
-                            <>
-                              {format(dateRange.from, "LLL dd, y")} -{" "}
-                              {format(dateRange.to, "LLL dd, y")}
-                            </>
-                          ) : (
-                            format(dateRange.from, "LLL dd, y")
-                          )
-                        ) : (
-                          <span>Pick a date range</span>
-                        )}
+                        {category}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange?.from}
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        numberOfMonths={2}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                    ))}
+                  </div>
+                  {selectedCategories.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {selectedCategories.length} category(s) selected
+                    </div>
+                  )}
                 </div>
 
-                {/* Past Events Toggle */}
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="past-events"
-                    checked={showPastEvents}
-                    onCheckedChange={setShowPastEvents}
-                  />
-                  <Label htmlFor="past-events">Show past events</Label>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Date Range */}
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !dateRange?.from && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange?.from ? (
+                            dateRange.to ? (
+                              <>
+                                {format(dateRange.from, "LLL dd, y")} -{" "}
+                                {format(dateRange.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(dateRange.from, "LLL dd, y")
+                            )
+                          ) : (
+                            <span>Pick a date range</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={dateRange?.from}
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Past Events Toggle */}
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="past-events"
+                      checked={showPastEvents}
+                      onCheckedChange={setShowPastEvents}
+                    />
+                    <Label htmlFor="past-events">Show past events</Label>
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -33,6 +33,7 @@ import { useZap } from "@/hooks/useZap";
 import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
 import { EventComments } from "@/components/EventComments";
+import { EventCategories } from "@/components/EventCategories";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -347,6 +348,13 @@ export function EventDetail() {
             <h3 className="font-semibold">Description</h3>
             <p className="text-muted-foreground">{event.content}</p>
           </div>
+
+          <EventCategories 
+            categories={event.tags
+              .filter((tag) => tag[0] === "t")
+              .map((tag) => tag[1])
+            }
+          />
 
           <div>
             <h3 className="font-semibold">Location</h3>

@@ -1,24 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PaidTicketForm } from "@/components/PaidTicketForm";
-import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { TimePicker } from "@/components/ui/time-picker";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { cn } from "@/lib/utils";
 import { LocationSearch } from "@/components/LocationSearch";
+import { ImageUpload } from "@/components/ImageUpload";
+import { CategorySelector } from "@/components/CategorySelector";
+import { PaidTicketForm } from "@/components/PaidTicketForm";
+import { EventCategory } from "@/lib/eventCategories";
+import { toast } from "sonner";
 
 export function CreateEvent() {
   const navigate = useNavigate();
@@ -41,7 +36,7 @@ export function CreateEvent() {
     endDate: "",
     endTime: "",
     imageUrl: "",
-    hashtags: "",
+    categories: [] as EventCategory[],
     ticketInfo: {
       enabled: false,
       price: 0,
@@ -52,6 +47,32 @@ export function CreateEvent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    // Validate required fields
+    if (!formData.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    if (!formData.startDate) {
+      toast.error("Start date is required");
+      return;
+    }
+
+    if (!formData.endDate) {
+      toast.error("End date is required");
+      return;
+    }
+
+    // Validate end date is after start date
+    if (formData.endDate < formData.startDate) {
+      toast.error("End date must be after start date");
+      return;
+    }
+
+    console.log("Form data at submission:", {
+      imageUrl: formData.imageUrl,
+    });
 
     setIsSubmitting(true);
     try {
@@ -68,31 +89,31 @@ export function CreateEvent() {
 
       if (hasTime) {
         // For time-based events (kind 31923), use Unix timestamps with specific times
-        const startDate = new Date(formData.startDate);
+        const startDateTime = new Date(formData.startDate);
         if (formData.startTime) {
           const [hours, minutes] = formData.startTime.split(":").map(Number);
-          startDate.setHours(hours, minutes);
+          startDateTime.setHours(hours, minutes);
         }
 
-        const endDate = new Date(formData.endDate);
+        const endDateTime = new Date(formData.endDate);
         if (formData.endTime) {
           const [hours, minutes] = formData.endTime.split(":").map(Number);
-          endDate.setHours(hours, minutes);
+          endDateTime.setHours(hours, minutes);
         }
 
-        startTimestamp = Math.floor(startDate.getTime() / 1000).toString();
-        endTimestamp = Math.floor(endDate.getTime() / 1000).toString();
+        startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
+        endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
       } else {
         // For date-only events (kind 31922), use Unix timestamps at start/end of day UTC
-        const startDate = new Date(formData.startDate);
+        const startDateTime = new Date(formData.startDate);
         // Set to midnight UTC
-        startDate.setUTCHours(0, 0, 0, 0);
-        startTimestamp = Math.floor(startDate.getTime() / 1000).toString();
+        startDateTime.setUTCHours(0, 0, 0, 0);
+        startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
 
-        const endDate = new Date(formData.endDate);
+        const endDateTime = new Date(formData.endDate);
         // Set to end of day UTC
-        endDate.setUTCHours(23, 59, 59, 999);
-        endTimestamp = Math.floor(endDate.getTime() / 1000).toString();
+        endDateTime.setUTCHours(23, 59, 59, 999);
+        endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
       }
 
       const tags = [
@@ -129,20 +150,17 @@ export function CreateEvent() {
 
       // Add image URL if provided
       if (formData.imageUrl) {
+        console.log("Adding image to event:", {
+          imageUrl: formData.imageUrl,
+        });
+        // Add the image tag
         tags.push(["image", formData.imageUrl]);
       }
 
-      // Add hashtags if provided
-      if (formData.hashtags) {
-        // Split by comma and trim whitespace
-        const hashtagList = formData.hashtags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter((tag) => tag.length > 0);
-
-        // Add each hashtag as a 't' tag
-        for (const tag of hashtagList) {
-          tags.push(["t", tag]);
+      // Add categories as 't' tags if provided
+      if (formData.categories.length > 0) {
+        for (const category of formData.categories) {
+          tags.push(["t", category]);
         }
       }
 
@@ -189,7 +207,7 @@ export function CreateEvent() {
             id="title"
             value={formData.title}
             onChange={(e) =>
-              setFormData({ ...formData, title: e.target.value })
+              setFormData((prev) => ({ ...prev, title: e.target.value }))
             }
             required
           />
@@ -201,7 +219,7 @@ export function CreateEvent() {
             id="description"
             value={formData.description}
             onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
+              setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
             required
           />
@@ -209,143 +227,142 @@ export function CreateEvent() {
 
         <LocationSearch
           value={formData.location}
-          onChange={(value) => setFormData({ ...formData, location: value })}
+          onChange={(value) =>
+            setFormData((prev) => ({ ...prev, location: value }))
+          }
           onLocationSelect={(location) =>
-            setFormData({
-              ...formData,
+            setFormData((prev) => ({
+              ...prev,
               location: location.address,
               locationDetails: location,
-            })
+            }))
           }
         />
 
-        <div>
-          <Label htmlFor="imageUrl">Image URL (Optional)</Label>
-          <Input
-            id="imageUrl"
-            type="url"
-            placeholder="https://example.com/image.jpg"
-            value={formData.imageUrl}
-            onChange={(e) =>
-              setFormData({ ...formData, imageUrl: e.target.value })
-            }
-          />
-        </div>
+        <ImageUpload
+          value={formData.imageUrl}
+          onChange={(url) => {
+            console.log("Setting image URL in form data:", url);
+            setFormData((prev) => ({ ...prev, imageUrl: url }));
+          }}
+        />
 
-        <div>
-          <Label htmlFor="hashtags">Hashtags (Optional)</Label>
-          <Input
-            id="hashtags"
-            placeholder="comma, separated, tags"
-            value={formData.hashtags}
-            onChange={(e) =>
-              setFormData({ ...formData, hashtags: e.target.value })
-            }
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            Separate multiple hashtags with commas
-          </p>
-        </div>
+        <CategorySelector
+          selectedCategories={formData.categories}
+          onCategoriesChange={(categories) =>
+            setFormData((prev) => ({ ...prev, categories }))
+          }
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Start Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.startDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.startDate ? (
-                    format(parseISO(formData.startDate), "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={
-                    formData.startDate
-                      ? parseISO(formData.startDate)
-                      : undefined
-                  }
-                  onSelect={(date) =>
-                    setFormData({
-                      ...formData,
-                      startDate: date ? format(date, "yyyy-MM-dd") : "",
-                    })
-                  }
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label>Start Time (Optional)</Label>
-            <TimePicker
-              value={formData.startTime}
-              onChange={(value) =>
-                setFormData({ ...formData, startTime: value })
+          <div className="space-y-2">
+            <Label htmlFor="startDate" className="text-sm font-medium">
+              Start Date
+            </Label>
+            <Calendar
+              id="startDate"
+              mode="single"
+              selected={
+                formData.startDate
+                  ? new Date(formData.startDate + "T12:00:00Z")
+                  : undefined
               }
+              onSelect={(date) => {
+                if (date) {
+                  // Create date in UTC noon to avoid timezone issues
+                  const selectedDate = new Date(
+                    Date.UTC(
+                      date.getFullYear(),
+                      date.getMonth(),
+                      date.getDate(),
+                      12,
+                      0,
+                      0,
+                      0
+                    )
+                  );
+                  setFormData((prev) => ({
+                    ...prev,
+                    startDate: selectedDate.toISOString().split("T")[0],
+                  }));
+                }
+              }}
+              disabled={(date) => {
+                const today = new Date();
+                today.setUTCHours(0, 0, 0, 0);
+                return date < today;
+              }}
+              className="rounded-md border"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="endDate" className="text-sm font-medium">
+              End Date
+            </Label>
+            <Calendar
+              id="endDate"
+              mode="single"
+              selected={
+                formData.endDate
+                  ? new Date(formData.endDate + "T12:00:00Z")
+                  : undefined
+              }
+              onSelect={(date) => {
+                if (date) {
+                  // Create date in UTC noon to avoid timezone issues
+                  const selectedDate = new Date(
+                    Date.UTC(
+                      date.getFullYear(),
+                      date.getMonth(),
+                      date.getDate(),
+                      12,
+                      0,
+                      0,
+                      0
+                    )
+                  );
+                  setFormData((prev) => ({
+                    ...prev,
+                    endDate: selectedDate.toISOString().split("T")[0],
+                  }));
+                }
+              }}
+              disabled={(date) => {
+                const startDate = formData.startDate
+                  ? new Date(formData.startDate + "T12:00:00Z")
+                  : new Date();
+                startDate.setUTCHours(0, 0, 0, 0);
+                return date < startDate;
+              }}
+              className="rounded-md border"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label>End Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.endDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.endDate ? (
-                    format(parseISO(formData.endDate), "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={
-                    formData.endDate ? parseISO(formData.endDate) : undefined
-                  }
-                  onSelect={(date) =>
-                    setFormData({
-                      ...formData,
-                      endDate: date ? format(date, "yyyy-MM-dd") : "",
-                    })
-                  }
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <Label>Start Time (Optional)</Label>
+            <TimePicker
+              value={formData.startTime}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, startTime: value }))
+              }
+            />
           </div>
           <div>
             <Label>End Time (Optional)</Label>
             <TimePicker
               value={formData.endTime}
-              onChange={(value) => setFormData({ ...formData, endTime: value })}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, endTime: value }))
+              }
             />
           </div>
         </div>
 
         <PaidTicketForm
           onTicketInfoChange={(ticketInfo) =>
-            setFormData({ ...formData, ticketInfo })
+            setFormData((prev) => ({ ...prev, ticketInfo }))
           }
         />
 
