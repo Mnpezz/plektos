@@ -107,48 +107,46 @@ export function Profile() {
   return (
     <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8 space-y-3 sm:space-y-6">
       <Card className="rounded-none sm:rounded-lg">
-        <CardHeader className="p-3 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
-                <AvatarImage src={profileImage} alt={displayName} />
-                <AvatarFallback className="text-lg">
-                  {displayName.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="space-y-2">
-                <CardTitle className="text-xl sm:text-2xl">{displayName}</CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  {nip05 && (
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      ✓ {nip05}
-                    </Badge>
-                  )}
-                  {lightningAddress && user && !isOwnProfile ? (
-                    <ZappableLightningAddress
-                      lightningAddress={lightningAddress}
-                      pubkey={pubkey}
-                      displayName={displayName}
-                      eventKind={0}
-                    />
-                  ) : lightningAddress ? (
-                    <Badge variant="outline" className="font-mono text-xs">
-                      ⚡ {lightningAddress}
-                    </Badge>
-                  ) : null}
-                </div>
+        <CardHeader className="relative p-3 sm:p-6">
+          {/* Action menu positioned absolutely in top right corner */}
+          {user && !isOwnProfile && (
+            <div className="absolute top-3 right-3 sm:top-6 sm:right-6 z-10">
+              <UserActionsMenu 
+                pubkey={pubkey} 
+                authorName={displayName}
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+              <AvatarImage src={profileImage} alt={displayName} />
+              <AvatarFallback className="text-lg">
+                {displayName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-2">
+              <CardTitle className="text-xl sm:text-2xl pr-12 sm:pr-0">{displayName}</CardTitle>
+              <div className="flex flex-wrap gap-2">
+                {nip05 && (
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    ✓ {nip05}
+                  </Badge>
+                )}
+                {lightningAddress && user && !isOwnProfile ? (
+                  <ZappableLightningAddress
+                    lightningAddress={lightningAddress}
+                    pubkey={pubkey}
+                    displayName={displayName}
+                    eventKind={0}
+                  />
+                ) : lightningAddress ? (
+                  <Badge variant="outline" className="font-mono text-xs">
+                    ⚡ {lightningAddress}
+                  </Badge>
+                ) : null}
               </div>
             </div>
-
-            {/* Action buttons */}
-            {user && !isOwnProfile && (
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <UserActionsMenu 
-                  pubkey={pubkey} 
-                  authorName={displayName}
-                />
-              </div>
-            )}
           </div>
         </CardHeader>
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-6">
