@@ -23,14 +23,14 @@ export function Layout({ children }: LayoutProps) {
                 to="/"
                 className="transition-colors hover:text-foreground/80"
               >
-                Home
+                Discover
               </Link>
               {user && (
                 <Link
                   to="/create"
                   className="transition-colors hover:text-foreground/80"
                 >
-                  Create Event
+                  Create
                 </Link>
               )}
             </nav>

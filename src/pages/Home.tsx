@@ -39,7 +39,9 @@ export function Home() {
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [locationFilter, setLocationFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>(
+    []
+  );
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter events based on all criteria
@@ -99,7 +101,11 @@ export function Home() {
     setSelectedCategories([]);
   };
 
-  const hasActiveFilters = locationFilter || dateRange || showPastEvents || selectedCategories.length > 0;
+  const hasActiveFilters =
+    locationFilter ||
+    dateRange ||
+    showPastEvents ||
+    selectedCategories.length > 0;
 
   useEffect(() => {
     console.log("Home component mounted");
@@ -122,10 +128,10 @@ export function Home() {
     <div className="container px-4 py-6 space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          Upcoming Events
+          Discover Events
         </h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Discover and join events in your area
+          Where people and purpose intertwine
         </p>
       </div>
 
@@ -207,7 +213,10 @@ export function Home() {
                               selectedCategories.filter((c) => c !== category)
                             );
                           } else {
-                            setSelectedCategories([...selectedCategories, category]);
+                            setSelectedCategories([
+                              ...selectedCategories,
+                              category,
+                            ]);
                           }
                         }}
                       >

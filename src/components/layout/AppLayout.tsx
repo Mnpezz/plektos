@@ -20,7 +20,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2 transition-colors hover:text-foreground/80"
             >
               <Home className="h-4 w-4" />
-              Home
+              Discover
             </Link>
             <Link
               to="/events"
