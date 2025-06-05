@@ -53,8 +53,120 @@ export function Home() {
       const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
       if (!startTime) return false;
 
-      const eventStart = parseInt(startTime) * 1000; // Convert to milliseconds
-      const eventEnd = endTime ? parseInt(endTime) * 1000 : eventStart; // Use start time as end time if no end time specified
+      let eventStart: number;
+      let eventEnd: number;
+
+      if (event.kind === 31922) {
+        // For date-only events, handle both YYYY-MM-DD and Unix timestamp formats
+        try {
+          if (startTime.match(/^\d{10}$/)) {
+            // If start time is a short Unix timestamp (10 digits)
+            const startDate = new Date(parseInt(startTime) * 1000);
+            if (isNaN(startDate.getTime())) {
+              console.error("Invalid start date:", startTime);
+              return false;
+            }
+            eventStart = new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate()
+            ).getTime();
+            if (endTime?.match(/^\d{10}$/)) {
+              const endDate = new Date(parseInt(endTime) * 1000);
+              if (isNaN(endDate.getTime())) {
+                console.error("Invalid end date:", endTime);
+                return false;
+              }
+              eventEnd = new Date(
+                endDate.getFullYear(),
+                endDate.getMonth(),
+                endDate.getDate(),
+                23,
+                59,
+                59
+              ).getTime();
+            } else {
+              eventEnd = new Date(
+                startDate.getFullYear(),
+                startDate.getMonth(),
+                startDate.getDate(),
+                23,
+                59,
+                59
+              ).getTime();
+            }
+          } else if (startTime.match(/^\d{13}$/)) {
+            // If start time is a long Unix timestamp (13 digits)
+            const startDate = new Date(parseInt(startTime));
+            if (isNaN(startDate.getTime())) {
+              console.error("Invalid start date:", startTime);
+              return false;
+            }
+            eventStart = new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate()
+            ).getTime();
+            if (endTime?.match(/^\d{13}$/)) {
+              const endDate = new Date(parseInt(endTime));
+              if (isNaN(endDate.getTime())) {
+                console.error("Invalid end date:", endTime);
+                return false;
+              }
+              eventEnd = new Date(
+                endDate.getFullYear(),
+                endDate.getMonth(),
+                endDate.getDate(),
+                23,
+                59,
+                59
+              ).getTime();
+            } else {
+              eventEnd = new Date(
+                startDate.getFullYear(),
+                startDate.getMonth(),
+                startDate.getDate(),
+                23,
+                59,
+                59
+              ).getTime();
+            }
+          } else {
+            // If start time is in YYYY-MM-DD format
+            const startDate = new Date(startTime + "T00:00:00Z");
+            if (isNaN(startDate.getTime())) {
+              console.error("Invalid start date:", startTime);
+              return false;
+            }
+            eventStart = startDate.getTime();
+            if (endTime) {
+              const endDate = new Date(endTime + "T23:59:59Z");
+              if (isNaN(endDate.getTime())) {
+                console.error("Invalid end date:", endTime);
+                return false;
+              }
+              eventEnd = endDate.getTime();
+            } else {
+              eventEnd = new Date(
+                startDate.getFullYear(),
+                startDate.getMonth(),
+                startDate.getDate(),
+                23,
+                59,
+                59
+              ).getTime();
+            }
+          }
+        } catch (error) {
+          console.error("Error parsing dates:", error, { startTime, endTime });
+          return false;
+        }
+      } else {
+        // For time-based events, convert Unix timestamps to milliseconds
+        eventStart = parseInt(startTime) * 1000;
+        eventEnd = endTime ? parseInt(endTime) * 1000 : eventStart;
+      }
+
       const now = Date.now();
 
       // Filter by past/future events - an event is past only when its end time has passed
@@ -87,11 +199,18 @@ export function Home() {
       return true;
     })
     ?.sort((a, b) => {
-      const aStart =
-        parseInt(a.tags.find((tag) => tag[0] === "start")?.[1] || "0") * 1000;
-      const bStart =
-        parseInt(b.tags.find((tag) => tag[0] === "start")?.[1] || "0") * 1000;
-      return aStart - bStart;
+      const getEventStartTime = (event: DateBasedEvent | TimeBasedEvent) => {
+        const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+        if (!startTime) return 0;
+
+        if (event.kind === 31922) {
+          return new Date(startTime + "T00:00:00Z").getTime();
+        } else {
+          return parseInt(startTime) * 1000;
+        }
+      };
+
+      return getEventStartTime(a) - getEventStartTime(b);
     });
 
   const clearFilters = () => {
@@ -327,27 +446,116 @@ export function Home() {
                     {startTime && (
                       <CardDescription className="text-sm">
                         {event.kind === 31922
-                          ? // For date-only events, show just the date
-                            new Date(
-                              parseInt(startTime) * 1000
-                            ).toLocaleDateString(undefined, {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                              timeZone: "UTC",
-                            })
-                          : // For time-based events, show date and time
-                            new Date(parseInt(startTime) * 1000).toLocaleString(
-                              undefined,
-                              {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                                hour: "numeric",
-                                minute: "numeric",
-                                timeZone: "UTC",
+                          ? // For date-only events, format the date string
+                            (() => {
+                              try {
+                                let date;
+                                if (startTime.match(/^\d{10}$/)) {
+                                  // Short Unix timestamp
+                                  date = new Date(parseInt(startTime) * 1000);
+                                } else if (startTime.match(/^\d{13}$/)) {
+                                  // Long Unix timestamp
+                                  date = new Date(parseInt(startTime));
+                                } else {
+                                  // YYYY-MM-DD format
+                                  date = new Date(startTime + "T00:00:00Z");
+                                }
+
+                                if (isNaN(date.getTime())) {
+                                  console.error("Invalid date:", startTime);
+                                  return "Invalid date";
+                                }
+
+                                const endTime = event.tags.find(
+                                  (tag) => tag[0] === "end"
+                                )?.[1];
+                                if (endTime) {
+                                  let endDate;
+                                  if (endTime.match(/^\d{10}$/)) {
+                                    endDate = new Date(
+                                      parseInt(endTime) * 1000
+                                    );
+                                  } else if (endTime.match(/^\d{13}$/)) {
+                                    endDate = new Date(parseInt(endTime));
+                                  } else {
+                                    endDate = new Date(endTime + "T23:59:59Z");
+                                  }
+
+                                  if (isNaN(endDate.getTime())) {
+                                    console.error("Invalid end date:", endTime);
+                                    return date.toLocaleDateString(undefined, {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                      timeZone: "UTC",
+                                    });
+                                  }
+
+                                  // If start and end dates are the same, just show one date
+                                  if (
+                                    date.toDateString() ===
+                                    endDate.toDateString()
+                                  ) {
+                                    return date.toLocaleDateString(undefined, {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                      timeZone: "UTC",
+                                    });
+                                  }
+
+                                  // Show date range
+                                  return `${date.toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                    timeZone: "UTC",
+                                  })} - ${endDate.toLocaleDateString(
+                                    undefined,
+                                    {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                      timeZone: "UTC",
+                                    }
+                                  )}`;
+                                }
+
+                                // Single date
+                                return date.toLocaleDateString(undefined, {
+                                  year: "numeric",
+                                  month: "long",
+                                  day: "numeric",
+                                  timeZone: "UTC",
+                                });
+                              } catch (error) {
+                                console.error("Error formatting date:", error);
+                                return "Invalid date";
                               }
-                            )}
+                            })()
+                          : // For time-based events, format the Unix timestamp
+                            (() => {
+                              try {
+                                const date = new Date(
+                                  parseInt(startTime) * 1000
+                                );
+                                if (isNaN(date.getTime())) {
+                                  console.error("Invalid date:", startTime);
+                                  return "Invalid date";
+                                }
+                                return date.toLocaleString(undefined, {
+                                  year: "numeric",
+                                  month: "long",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "numeric",
+                                  timeZone: "UTC",
+                                });
+                              } catch (error) {
+                                console.error("Error formatting date:", error);
+                                return "Invalid date";
+                              }
+                            })()}
                       </CardDescription>
                     )}
                   </CardHeader>

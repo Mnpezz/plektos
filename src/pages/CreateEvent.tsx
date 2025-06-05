@@ -125,16 +125,9 @@ export function CreateEvent() {
         startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
         endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
       } else {
-        // For date-only events (kind 31922), use Unix timestamps at start/end of day UTC
-        const startDateTime = new Date(formData.startDate);
-        // Set to midnight UTC
-        startDateTime.setUTCHours(0, 0, 0, 0);
-        startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
-
-        const endDateTime = new Date(formData.endDate);
-        // Set to end of day UTC
-        endDateTime.setUTCHours(23, 59, 59, 999);
-        endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
+        // For date-only events (kind 31922), use YYYY-MM-DD format as per NIP-52
+        startTimestamp = formData.startDate; // Already in YYYY-MM-DD format
+        endTimestamp = formData.endDate; // Already in YYYY-MM-DD format
       }
 
       const tags = [

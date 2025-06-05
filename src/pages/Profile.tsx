@@ -228,24 +228,28 @@ export function Profile() {
                           {startTime && (
                             <p className="text-muted-foreground text-sm">
                               {event.kind === 31922
-                                ? new Date(
-                                    parseInt(startTime) * 1000
-                                  ).toLocaleDateString(undefined, {
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    timeZone: "UTC",
-                                  })
-                                : new Date(
-                                    parseInt(startTime) * 1000
-                                  ).toLocaleString(undefined, {
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    hour: "numeric",
-                                    minute: "numeric",
-                                    timeZone: "UTC",
-                                  })}
+                                ? (() => {
+                                    // For date-only events, format the YYYY-MM-DD date string
+                                    const date = new Date(startTime + "T00:00:00Z");
+                                    return date.toLocaleDateString(undefined, {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                      timeZone: "UTC",
+                                    });
+                                  })()
+                                : (() => {
+                                    // For time-based events, format the Unix timestamp
+                                    const date = new Date(parseInt(startTime) * 1000);
+                                    return date.toLocaleString(undefined, {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                      hour: "numeric",
+                                      minute: "numeric",
+                                      timeZone: "UTC",
+                                    });
+                                  })()}
                             </p>
                           )}
                           <p className="text-muted-foreground text-sm mt-2">

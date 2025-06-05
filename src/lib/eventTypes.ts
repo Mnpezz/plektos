@@ -12,8 +12,8 @@ export interface DateBasedEvent extends BaseEvent {
   tags: [
     ["d", string],
     ["title", string],
-    ["start", string], // ISO 8601 YYYY-MM-DD
-    ["end", string], // ISO 8601 YYYY-MM-DD
+    ["start", string], // ISO 8601 YYYY-MM-DD format
+    ["end", string], // ISO 8601 YYYY-MM-DD format
     ...string[][]
   ];
 }

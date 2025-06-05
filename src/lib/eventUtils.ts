@@ -18,13 +18,11 @@ export function useEvents() {
         const filters = [
           {
             kinds: [31922, 31923],
-            limit: 20,
-            since: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, // Last 30 days
+            limit: 100,
           },
           {
             kinds: [31925], // RSVP events
             limit: 100,
-            since: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, // Last 30 days
           },
         ];
         console.log("Querying with filters:", JSON.stringify(filters, null, 2));

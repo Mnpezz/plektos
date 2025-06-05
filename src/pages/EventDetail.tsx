@@ -268,8 +268,20 @@ export function EventDetail() {
       let shareMessage = `🎉 Join me at ${title}!\n\n`;
 
       if (startTime) {
-        const date = new Date(parseInt(startTime) * 1000);
-        shareMessage += `📅 ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}\n`;
+        if (event.kind === 31922) {
+          // For date-only events, format the YYYY-MM-DD date string
+          const date = new Date(startTime + "T00:00:00Z");
+          shareMessage += `📅 ${date.toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone: "UTC",
+          })}\n`;
+        } else {
+          // For time-based events, format the Unix timestamp
+          const date = new Date(parseInt(startTime) * 1000);
+          shareMessage += `📅 ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}\n`;
+        }
       }
 
       if (location) {
@@ -325,9 +337,11 @@ export function EventDetail() {
             </div>
             {user && (
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <ContactOrganizerDialog 
+                <ContactOrganizerDialog
                   organizerPubkey={event.pubkey}
-                  eventTitle={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"}
+                  eventTitle={
+                    event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"
+                  }
                 />
                 <Button
                   variant="outline"
@@ -349,11 +363,10 @@ export function EventDetail() {
             <p className="text-muted-foreground">{event.content}</p>
           </div>
 
-          <EventCategories 
+          <EventCategories
             categories={event.tags
               .filter((tag) => tag[0] === "t")
-              .map((tag) => tag[1])
-            }
+              .map((tag) => tag[1])}
           />
 
           <div>
@@ -366,48 +379,174 @@ export function EventDetail() {
           <div>
             <h3 className="font-semibold">Date & Time</h3>
             <p className="text-muted-foreground">
-              {event.kind === 31922 ? (
-                // For date-only events, show as all-day event
-                new Date(
-                  parseInt(
-                    event.tags.find((tag) => tag[0] === "start")?.[1] || "0"
-                  ) * 1000
-                ).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })
-              ) : (
-                // For time-based events, show start and end times
-                <>
-                  {new Date(
-                    parseInt(
-                      event.tags.find((tag) => tag[0] === "start")?.[1] || "0"
-                    ) * 1000
-                  ).toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "numeric",
-                    timeZone: "UTC",
-                  })}
-                  {" - "}
-                  {new Date(
-                    parseInt(
-                      event.tags.find((tag) => tag[0] === "end")?.[1] || "0"
-                    ) * 1000
-                  ).toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "numeric",
-                    timeZone: "UTC",
-                  })}
-                </>
-              )}
+              {event.kind === 31922
+                ? // For date-only events, handle all date formats
+                  (() => {
+                    try {
+                      const startTime = event.tags.find(
+                        (tag) => tag[0] === "start"
+                      )?.[1];
+                      const endTime = event.tags.find(
+                        (tag) => tag[0] === "end"
+                      )?.[1];
+
+                      if (!startTime) return "Date not specified";
+
+                      let startDate;
+                      if (startTime.match(/^\d{10}$/)) {
+                        // Short Unix timestamp
+                        startDate = new Date(parseInt(startTime) * 1000);
+                      } else if (startTime.match(/^\d{13}$/)) {
+                        // Long Unix timestamp
+                        startDate = new Date(parseInt(startTime));
+                      } else {
+                        // YYYY-MM-DD format
+                        startDate = new Date(startTime + "T00:00:00Z");
+                      }
+
+                      if (isNaN(startDate.getTime())) {
+                        console.error("Invalid start date:", startTime);
+                        return "Invalid date";
+                      }
+
+                      if (endTime) {
+                        let endDate;
+                        if (endTime.match(/^\d{10}$/)) {
+                          endDate = new Date(parseInt(endTime) * 1000);
+                        } else if (endTime.match(/^\d{13}$/)) {
+                          endDate = new Date(parseInt(endTime));
+                        } else {
+                          endDate = new Date(endTime + "T23:59:59Z");
+                        }
+
+                        if (isNaN(endDate.getTime())) {
+                          console.error("Invalid end date:", endTime);
+                          return startDate.toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          });
+                        }
+
+                        // If start and end dates are the same, just show one date
+                        if (
+                          startDate.toDateString() === endDate.toDateString()
+                        ) {
+                          return startDate.toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          });
+                        }
+
+                        // Show date range
+                        return `${startDate.toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          timeZone: "UTC",
+                        })} - ${endDate.toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          timeZone: "UTC",
+                        })}`;
+                      }
+
+                      // Single date
+                      return startDate.toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      });
+                    } catch (error) {
+                      console.error("Error formatting date:", error);
+                      return "Invalid date";
+                    }
+                  })()
+                : // For time-based events, show start and end times from Unix timestamps
+                  (() => {
+                    try {
+                      const startTime = event.tags.find(
+                        (tag) => tag[0] === "start"
+                      )?.[1];
+                      const endTime = event.tags.find(
+                        (tag) => tag[0] === "end"
+                      )?.[1];
+
+                      if (!startTime) return "Time not specified";
+
+                      let startDate;
+                      if (startTime.match(/^\d{10}$/)) {
+                        // Short Unix timestamp
+                        startDate = new Date(parseInt(startTime) * 1000);
+                      } else if (startTime.match(/^\d{13}$/)) {
+                        // Long Unix timestamp
+                        startDate = new Date(parseInt(startTime));
+                      } else {
+                        startDate = new Date(startTime + "T00:00:00Z");
+                      }
+
+                      if (isNaN(startDate.getTime())) {
+                        console.error("Invalid start date:", startTime);
+                        return "Invalid date";
+                      }
+
+                      if (endTime) {
+                        let endDate;
+                        if (endTime.match(/^\d{10}$/)) {
+                          endDate = new Date(parseInt(endTime) * 1000);
+                        } else if (endTime.match(/^\d{13}$/)) {
+                          endDate = new Date(parseInt(endTime));
+                        } else {
+                          endDate = new Date(endTime + "T23:59:59Z");
+                        }
+
+                        if (isNaN(endDate.getTime())) {
+                          console.error("Invalid end date:", endTime);
+                          return startDate.toLocaleString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "numeric",
+                            timeZone: "UTC",
+                          });
+                        }
+
+                        return `${startDate.toLocaleString(undefined, {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "numeric",
+                          timeZone: "UTC",
+                        })} - ${endDate.toLocaleString(undefined, {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "numeric",
+                          timeZone: "UTC",
+                        })}`;
+                      }
+
+                      return startDate.toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "numeric",
+                        timeZone: "UTC",
+                      });
+                    } catch (error) {
+                      console.error("Error formatting date:", error);
+                      return "Invalid date";
+                    }
+                  })()}
             </p>
           </div>
 
@@ -565,9 +704,11 @@ export function EventDetail() {
           {event && (
             <div className="space-y-8">
               <ZapReceipts eventId={event.id} eventPubkey={event.pubkey} />
-              <EventComments 
-                eventId={event.id} 
-                eventTitle={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"} 
+              <EventComments
+                eventId={event.id}
+                eventTitle={
+                  event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"
+                }
               />
             </div>
           )}
