@@ -14,6 +14,29 @@ import { CategorySelector } from "@/components/CategorySelector";
 import { PaidTicketForm } from "@/components/PaidTicketForm";
 import { EventCategory } from "@/lib/eventCategories";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Common timezones that users are likely to select
+const commonTimezones = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
 
 export function CreateEvent() {
   const navigate = useNavigate();
@@ -42,6 +65,7 @@ export function CreateEvent() {
       price: 0,
       lightningAddress: "",
     },
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Default to user's timezone
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,9 +103,6 @@ export function CreateEvent() {
       // Determine if this is a time-based event
       const hasTime = formData.startTime || formData.endTime;
       const eventKind = hasTime ? 31923 : 31922;
-
-      // Get the user's timezone
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
       // Format start and end timestamps based on event kind
       let startTimestamp: string;
@@ -142,9 +163,9 @@ export function CreateEvent() {
 
       // Add timezone tags only for time-based events (kind 31923)
       if (hasTime) {
-        tags.push(["start_tzid", timezone]);
+        tags.push(["start_tzid", formData.timezone]);
         if (endTimestamp) {
-          tags.push(["end_tzid", timezone]);
+          tags.push(["end_tzid", formData.timezone]);
         }
       }
 
@@ -359,6 +380,29 @@ export function CreateEvent() {
             />
           </div>
         </div>
+
+        {(formData.startTime || formData.endTime) && (
+          <div>
+            <Label>Timezone</Label>
+            <Select
+              value={formData.timezone}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, timezone: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {commonTimezones.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <PaidTicketForm
           onTicketInfoChange={(ticketInfo) =>
