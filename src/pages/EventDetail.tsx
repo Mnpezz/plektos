@@ -279,9 +279,19 @@ export function EventDetail() {
             timeZone: "UTC",
           })}\n`;
         } else {
-          // For time-based events, format the Unix timestamp
+          // For time-based events, format the Unix timestamp in UTC
           const date = new Date(parseInt(startTime) * 1000);
-          shareMessage += `📅 ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}\n`;
+          shareMessage += `📅 ${date.toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone: "UTC",
+          })} at ${date.toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "numeric",
+            hour12: true,
+            timeZone: "UTC",
+          })}\n`;
         }
       }
 
