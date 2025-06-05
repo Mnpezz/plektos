@@ -2,12 +2,16 @@ import { useParams } from "react-router-dom";
 import { useNostr } from "@nostrify/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthor } from "@/hooks/useAuthor";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { createEventIdentifier } from "@/lib/nip19Utils";
 import { nip19 } from "nostr-tools";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { UserActionsMenu } from "@/components/UserActionsMenu";
+import { ZappableLightningAddress } from "@/components/ZappableLightningAddress";
+import { ExternalLink } from "lucide-react";
 import type {
   DateBasedEvent,
   TimeBasedEvent,
@@ -18,6 +22,7 @@ import { useState, useEffect } from "react";
 export function Profile() {
   const { npub } = useParams<{ npub: string }>();
   const { nostr } = useNostr();
+  const { user } = useCurrentUser();
   const [pubkey, setPubkey] = useState<string | undefined>(undefined);
 
   // Initialize all hooks at the top
@@ -82,6 +87,9 @@ export function Profile() {
   const about = metadata?.about;
   const website = metadata?.website;
   const nip05 = metadata?.nip05;
+  const lightningAddress = metadata?.lud16 || metadata?.lud06;
+
+  const isOwnProfile = user?.pubkey === pubkey;
 
   if (!pubkey) {
     return <div>Profile not found</div>;
@@ -97,25 +105,53 @@ export function Profile() {
   }
 
   return (
-    <div className="container max-w-4xl px-2 sm:px-6 py-4 sm:py-8">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={profileImage} alt={displayName} />
-              <AvatarFallback>{displayName.slice(0, 2)}</AvatarFallback>
-            </Avatar>
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">{displayName}</CardTitle>
-              {nip05 && (
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {nip05}
-                </Badge>
-              )}
+    <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8 space-y-3 sm:space-y-6">
+      <Card className="rounded-none sm:rounded-lg">
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+                <AvatarImage src={profileImage} alt={displayName} />
+                <AvatarFallback className="text-lg">
+                  {displayName.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-2">
+                <CardTitle className="text-xl sm:text-2xl">{displayName}</CardTitle>
+                <div className="flex flex-wrap gap-2">
+                  {nip05 && (
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      ✓ {nip05}
+                    </Badge>
+                  )}
+                  {lightningAddress && user && !isOwnProfile ? (
+                    <ZappableLightningAddress
+                      lightningAddress={lightningAddress}
+                      pubkey={pubkey}
+                      displayName={displayName}
+                      eventKind={0}
+                    />
+                  ) : lightningAddress ? (
+                    <Badge variant="outline" className="font-mono text-xs">
+                      ⚡ {lightningAddress}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
             </div>
+
+            {/* Action buttons */}
+            {user && !isOwnProfile && (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <UserActionsMenu 
+                  pubkey={pubkey} 
+                  authorName={displayName}
+                />
+              </div>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-6">
           {about && (
             <div>
               <h3 className="font-semibold mb-2">About</h3>
@@ -127,12 +163,13 @@ export function Profile() {
             <div>
               <h3 className="font-semibold mb-2">Website</h3>
               <a
-                href={website}
+                href={website.startsWith('http') ? website : `https://${website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-primary hover:underline flex items-center gap-1"
               >
                 {website}
+                <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           )}
@@ -150,8 +187,8 @@ export function Profile() {
                   const eventIdentifier = createEventIdentifier(event);
 
                   return (
-                    <Card key={event.id}>
-                      <CardContent className="pt-6">
+                    <Card key={event.id} className="rounded-none sm:rounded-lg">
+                      <CardContent className="p-3 sm:p-6">
                         <Link
                           to={`/event/${eventIdentifier}`}
                           className="block hover:opacity-80 transition-opacity"
@@ -193,8 +230,8 @@ export function Profile() {
                   const eventIdentifier = createEventIdentifier(event);
 
                   return (
-                    <Card key={rsvp.id}>
-                      <CardContent className="pt-6">
+                    <Card key={rsvp.id} className="rounded-none sm:rounded-lg">
+                      <CardContent className="p-3 sm:p-6">
                         <div className="flex items-center justify-between mb-2">
                           <Badge
                             variant="outline"

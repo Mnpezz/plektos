@@ -30,13 +30,14 @@ import { nip19 } from "nostr-tools";
 import { useQueryClient } from "@tanstack/react-query";
 import { DeleteEvent } from "@/components/DeleteEvent";
 import { EditEvent } from "@/components/EditEvent";
-import { useZap } from "@/hooks/useZap";
+import { ZapButton } from "@/components/ZapButton";
 import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
 import { EventComments } from "@/components/EventComments";
 import { EventCategories } from "@/components/EventCategories";
 import { downloadICS } from "@/lib/icsExport";
 import { decodeEventIdentifier, createEventUrl } from "@/lib/nip19Utils";
+import { UserActionsMenu } from "@/components/UserActionsMenu";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -75,18 +76,24 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
   const npub = nip19.npubEncode(pubkey);
 
   return (
-    <Link
-      to={`/profile/${npub}`}
-      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-    >
-      <Avatar className="h-6 w-6">
-        <AvatarImage src={profileImage} alt={displayName} />
-        <AvatarFallback>{displayName.slice(0, 2)}</AvatarFallback>
-      </Avatar>
-      <span className="text-sm text-muted-foreground">
-        Created by {displayName}
-      </span>
-    </Link>
+    <div className="flex items-center justify-between gap-2">
+      <Link
+        to={`/profile/${npub}`}
+        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+      >
+        <Avatar className="h-6 w-6">
+          <AvatarImage src={profileImage} alt={displayName} />
+          <AvatarFallback>{displayName.slice(0, 2)}</AvatarFallback>
+        </Avatar>
+        <span className="text-sm text-muted-foreground">
+          Created by {displayName}
+        </span>
+      </Link>
+      <UserActionsMenu 
+        pubkey={pubkey} 
+        authorName={displayName}
+      />
+    </div>
   );
 }
 
@@ -94,7 +101,6 @@ export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
   const { data: events, isLoading, refetch: refetchEvents } = useEvents();
   const { user } = useCurrentUser();
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const { mutate: publishRSVP } = useNostrPublish();
   const { mutate: publishShare } = useNostrPublish();
   const [rsvpStatus, setRsvpStatus] = useState<
@@ -106,7 +112,6 @@ export function EventDetail() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { zap } = useZap();
 
   // Enhanced event update handler with proper refresh
   const handleEventUpdated = async () => {
@@ -213,34 +218,6 @@ export function EventDetail() {
   const isHost = user?.pubkey === event.pubkey;
   const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
   const eventIdentifier = event.tags.find((tag) => tag[0] === "d")?.[1];
-
-  const handlePurchaseTicket = async () => {
-    if (!event || !isPaidEvent) return;
-
-    try {
-      setIsProcessingPayment(true);
-      await zap({
-        amount: parseInt(price),
-        eventId: event.id,
-        eventPubkey: event.pubkey,
-        eventKind: event.kind,
-        eventIdentifier: eventIdentifier,
-        eventName: event.tags.find((tag) => tag[0] === "title")?.[1] || "Event",
-        comment: `Ticket for ${
-          event.tags.find((tag) => tag[0] === "title")?.[1] || "event"
-        }`,
-        lightningAddress: lightningAddress,
-      });
-      await queryClient.invalidateQueries({ queryKey: ["event", event.id] });
-    } catch (error) {
-      console.error("Error purchasing ticket:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to purchase ticket"
-      );
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
 
   const handleRSVP = async () => {
     if (!user || !eventIdentifier) return;
@@ -732,12 +709,17 @@ export function EventDetail() {
                 Price: {formatAmount(parseInt(price))}
               </p>
               {user ? (
-                <Button
-                  onClick={handlePurchaseTicket}
-                  disabled={isProcessingPayment}
-                >
-                  {isProcessingPayment ? "Processing..." : "Purchase Ticket"}
-                </Button>
+                <ZapButton
+                  pubkey={event.pubkey}
+                  displayName={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"}
+                  lightningAddress={lightningAddress || ""}
+                  eventId={event.id}
+                  eventKind={event.kind}
+                  eventIdentifier={eventIdentifier}
+                  fixedAmount={parseInt(price)}
+                  buttonText="Purchase Ticket"
+                  className="w-full"
+                />
               ) : (
                 <p className="text-muted-foreground">
                   Please log in to purchase a ticket
@@ -756,7 +738,9 @@ export function EventDetail() {
 
           {event && (
             <div className="space-y-8">
-              <ZapReceipts eventId={event.id} eventPubkey={event.pubkey} />
+              {isHost && (
+                <ZapReceipts eventId={event.id} eventPubkey={event.pubkey} />
+              )}
               <EventComments
                 eventId={event.id}
                 eventTitle={

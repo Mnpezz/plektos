@@ -1,4 +1,5 @@
 import { useEvents } from "@/lib/eventUtils";
+import { useMuteList } from "@/hooks/useMuteList";
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
 export function Home() {
   console.log("Home component rendering");
   const { data: events, isLoading, error } = useEvents();
+  const { isMuted, isLoading: isMuteListLoading } = useMuteList();
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [locationFilter, setLocationFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -44,10 +46,15 @@ export function Home() {
   );
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
-  // Filter events based on all criteria
+  // Filter events based on all criteria including mute list
   const calendarEvents = events
     ?.filter((event): event is DateBasedEvent | TimeBasedEvent => {
       if (event.kind !== 31922 && event.kind !== 31923) return false;
+
+      // Filter out events from muted pubkeys
+      if (!isMuteListLoading && isMuted(event.pubkey)) {
+        return false;
+      }
 
       const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
       const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
@@ -231,7 +238,7 @@ export function Home() {
     console.log("Events state:", { events, isLoading, error });
   }, [events, isLoading, error]);
 
-  if (isLoading) {
+  if (isLoading || isMuteListLoading) {
     console.log("Loading events...");
     return <Spinner />;
   }

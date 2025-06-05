@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthor } from "@/hooks/useAuthor";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { cn } from "@/lib/utils";
+import { UserActionsMenu } from "@/components/UserActionsMenu";
 import type { NostrEvent } from "@nostrify/nostrify";
 
 interface CommentItemProps {
@@ -43,9 +44,15 @@ export function CommentItem({
       </Avatar>
       
       <div className="flex-1 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{displayName}</span>
-          <span className="text-xs text-muted-foreground">{timeAgo}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{displayName}</span>
+            <span className="text-xs text-muted-foreground">{timeAgo}</span>
+          </div>
+          <UserActionsMenu 
+            pubkey={comment.pubkey} 
+            authorName={displayName}
+          />
         </div>
         
         <p className="text-sm text-foreground whitespace-pre-wrap break-words">

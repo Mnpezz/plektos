@@ -20,6 +20,8 @@ interface ZapOptions {
   eventName?: string;
   comment?: string;
   lightningAddress: string;
+  // If true, caller will handle success toast - prevents duplicate toasts
+  skipSuccessToast?: boolean;
 }
 
 function lightningAddressToLnurl(lightningAddress: string): string {
@@ -37,81 +39,247 @@ export function useZap() {
     async (options: ZapOptions) => {
       try {
         if (!user?.signer) {
-          throw new Error("No signer available");
+          throw new Error("Please log in to send zaps");
+        }
+
+        if (!user.pubkey) {
+          throw new Error("Could not get user information");
         }
 
         // Convert lightning address to LNURL
         const lnurl = lightningAddressToLnurl(options.lightningAddress);
         const [username, domain] = options.lightningAddress.split("@");
 
+        // Validate lightning address format
+        if (!username || !domain) {
+          throw new Error("Invalid lightning address format");
+        }
+
         // Fetch LNURL data from the user's server
-        const lnurlResponse = await fetch(
-          `https://${domain}/.well-known/lnurlp/${username}`
-        );
+        console.log("Fetching LNURL data for:", options.lightningAddress);
+        
+        let lnurlResponse;
+        try {
+          lnurlResponse = await fetch(
+            `https://${domain}/.well-known/lnurlp/${username}`,
+            {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+              },
+            }
+          );
+        } catch (fetchError) {
+          console.error("Failed to fetch LNURL data:", fetchError);
+          throw new Error("Unable to connect to lightning service. Please check your internet connection.");
+        }
+        
         if (!lnurlResponse.ok) {
-          throw new Error("Failed to fetch LNURL data");
+          console.error("LNURL fetch failed:", lnurlResponse.status, lnurlResponse.statusText);
+          throw new Error("Lightning address not found or invalid");
         }
 
         const lnurlData = await lnurlResponse.json();
+        console.log("LNURL data:", lnurlData);
+        
         if (lnurlData.status === "ERROR") {
-          throw new Error(lnurlData.reason || "Failed to get invoice");
+          throw new Error(lnurlData.reason || "Lightning service error");
+        }
+
+        if (!lnurlData.allowsNostr) {
+          throw new Error("This lightning address doesn't support Nostr zaps");
+        }
+
+        // Validate amount is within bounds from the lightning service
+        const amountMsats = options.amount * 1000;
+        if (lnurlData.minSendable && amountMsats < lnurlData.minSendable) {
+          throw new Error(`Minimum zap amount is ${Math.ceil(lnurlData.minSendable / 1000)} sats`);
+        }
+        if (lnurlData.maxSendable && amountMsats > lnurlData.maxSendable) {
+          throw new Error(`Maximum zap amount is ${Math.floor(lnurlData.maxSendable / 1000)} sats`);
         }
 
         // Create zap request event following NIP-57 requirements
-        const zapRequest = {
+        const zapRequestTags: string[][] = [
+          // Required: relays tag for zap receipt
+          ["relays", "wss://relay.damus.io", "wss://nostr-relay.wlvs.space"],
+          // Required: amount tag matching the amount parameter
+          ["amount", amountMsats.toString()],
+          // Required: lnurl tag
+          ["lnurl", lnurl],
+          // Required: exactly one p tag
+          ["p", options.eventPubkey],
+        ];
+
+        // Optional: add e tag only if we have a valid event ID
+        if (options.eventId && options.eventId.trim() !== "") {
+          zapRequestTags.push(["e", options.eventId]);
+        }
+
+        const zapRequestUnsigned = {
           kind: 9734,
-          content: options.comment || "Zap!",
-          tags: [
-            // Required: relays tag for zap receipt
-            ["relays", "wss://relay.damus.io", "wss://nostr-relay.wlvs.space"],
-            // Required: amount tag matching the amount parameter
-            ["amount", (options.amount * 1000).toString()],
-            // Required: lnurl tag
-            ["lnurl", lnurl],
-            // Required: exactly one p tag
-            ["p", options.eventPubkey],
-            // Optional: e tag (only if zapping an event)
-            ["e", options.eventId],
-          ],
+          content: options.comment || "",
+          tags: zapRequestTags,
           created_at: Math.floor(Date.now() / 1000),
           pubkey: user.pubkey,
         };
 
+        // Sign the zap request
+        console.log("Signing zap request:", zapRequestUnsigned);
+        const zapRequest = await user.signer.signEvent(zapRequestUnsigned);
+        console.log("Signed zap request:", zapRequest);
+
         // Create the invoice using the LNURL callback
-        const callbackUrl = `${lnurlData.callback}?amount=${
-          options.amount * 1000
-        }&nostr=${JSON.stringify(zapRequest)}`;
-        console.log("Calling LNURL callback:", callbackUrl);
+        // Try different URL encoding approaches for better compatibility
+        const zapRequestJson = JSON.stringify(zapRequest);
+        
+        // First attempt: Simple GET request without extra headers to avoid CORS preflight
+        const callbackUrl = `${lnurlData.callback}?amount=${amountMsats}&nostr=${encodeURIComponent(zapRequestJson)}`;
+        
+        console.log("Calling LNURL callback (attempt 1):", callbackUrl);
 
-        const callbackResponse = await fetch(callbackUrl);
+        let callbackResponse;
+        let zapSuccessful = true;
 
-        if (!callbackResponse.ok) {
-          console.error(
-            "LNURL callback failed:",
-            await callbackResponse.text()
-          );
-          throw new Error("Failed to create invoice");
+        try {
+          callbackResponse = await fetch(callbackUrl, {
+            method: 'GET',
+            // Don't include Content-Type in GET requests to avoid CORS preflight
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+        } catch (corsError) {
+          console.log("GET request failed with CORS/fetch error:", corsError);
+          zapSuccessful = false;
+          
+          // Skip to fallback immediately if we get a CORS or network error
+          console.log("Skipping POST attempt, trying fallback without nostr parameter");
+          const fallbackUrl = `${lnurlData.callback}?amount=${amountMsats}`;
+          
+          try {
+            callbackResponse = await fetch(fallbackUrl, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+              },
+            });
+            
+            if (callbackResponse.ok) {
+              const fallbackData = await callbackResponse.json();
+              if (fallbackData.pr && !fallbackData.status) {
+                console.log("Fallback successful, but this won't generate a zap receipt");
+                toast.warning("Payment will be sent but may not appear as a zap on Nostr");
+                zapSuccessful = false; // Not a real zap, just a payment
+              }
+            }
+          } catch (fallbackError) {
+            console.error("Fallback also failed:", fallbackError);
+            throw new Error("Unable to connect to lightning service. This may be due to CORS restrictions or service unavailability.");
+          }
+        }
+
+        // If the first attempt failed but didn't error, try POST
+        if (zapSuccessful && callbackResponse && !callbackResponse.ok) {
+          console.log("GET request failed, trying POST method");
+          
+          const postUrl = `${lnurlData.callback}`;
+          const formData = new URLSearchParams({
+            amount: amountMsats.toString(),
+            nostr: zapRequestJson
+          });
+
+          try {
+            callbackResponse = await fetch(postUrl, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: formData
+            });
+          } catch (postError) {
+            console.log("POST request also failed:", postError);
+            zapSuccessful = false;
+          }
+        }
+
+        // Final fallback if everything fails
+        if (zapSuccessful && (!callbackResponse || !callbackResponse.ok)) {
+          const errorText = await callbackResponse?.text().catch(() => "Unknown error");
+          console.error("LNURL callback failed:", callbackResponse?.status, errorText);
+          
+          // Try final fallback without the nostr parameter
+          console.log("Trying final fallback without nostr parameter");
+          const fallbackUrl = `${lnurlData.callback}?amount=${amountMsats}`;
+          
+          try {
+            const fallbackResponse = await fetch(fallbackUrl, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+              },
+            });
+
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              if (fallbackData.pr && !fallbackData.status) {
+                console.log("Final fallback successful, but this won't generate a zap receipt");
+                toast.warning("Payment will be sent but may not appear as a zap on Nostr");
+                callbackResponse = fallbackResponse;
+                zapSuccessful = false;
+              }
+            } else {
+              throw new Error("Failed to create lightning invoice. The lightning service may be temporarily unavailable.");
+            }
+          } catch (fallbackError) {
+            console.error("Final fallback also failed:", fallbackError);
+            throw new Error("Failed to create lightning invoice. The lightning service may be temporarily unavailable.");
+          }
         }
 
         const invoiceData = await callbackResponse.json();
         console.log("LNURL callback response:", invoiceData);
 
         if (invoiceData.status === "ERROR") {
-          throw new Error(invoiceData.reason || "Failed to create invoice");
+          throw new Error(invoiceData.reason || "Failed to create lightning invoice");
         }
 
-        // Get Alby provider
+        if (!invoiceData.pr) {
+          throw new Error("No lightning invoice received");
+        }
+
+        // Check for WebLN support
         if (!window.webln) {
           throw new Error(
-            "Alby extension not found. Please install Alby to use this feature."
+            "Lightning wallet not found. Please install a WebLN-compatible wallet like Alby."
           );
         }
-        await window.webln.enable();
+
+        // Enable WebLN
+        try {
+          await window.webln.enable();
+        } catch (error) {
+          console.error("Failed to enable WebLN:", error);
+          throw new Error("Failed to connect to lightning wallet. Please check your wallet permissions.");
+        }
 
         // Send payment
-        await window.webln.sendPayment(invoiceData.pr);
+        console.log("Sending lightning payment:", invoiceData.pr);
+        const paymentResult = await window.webln.sendPayment(invoiceData.pr);
+        console.log("Payment result:", paymentResult);
 
-        toast.success("Ticket purchased successfully!");
+        // Success - show success toast only if caller didn't opt to handle it themselves
+        if (!options.skipSuccessToast) {
+          if (zapSuccessful) {
+            toast.success(`Successfully zapped ${options.amount} sats!`);
+          } else {
+            // Payment sent but not a proper zap
+            toast.success(`Payment of ${options.amount} sats sent!`);
+          }
+        }
+        
+        return paymentResult;
       } catch (error) {
         console.error("Error sending zap:", error);
         throw error;

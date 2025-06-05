@@ -1,0 +1,132 @@
+import { useNostr } from "@nostrify/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useNostrPublish } from "@/hooks/useNostrPublish";
+import type { NostrEvent } from "@nostrify/nostrify";
+
+export interface MuteListEvent extends NostrEvent {
+  kind: 10000;
+}
+
+/**
+ * Hook for managing NIP-51 mute lists
+ * Fetches and manages the user's mute list (kind 10000)
+ */
+export function useMuteList() {
+  const { nostr } = useNostr();
+  const { user } = useCurrentUser();
+  const { mutateAsync: publishEvent } = useNostrPublish();
+  const queryClient = useQueryClient();
+
+  // Fetch the user's mute list
+  const {
+    data: muteList,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["muteList", user?.pubkey],
+    queryFn: async ({ signal }) => {
+      if (!user?.pubkey) return null;
+
+      const events = await nostr.query(
+        [
+          {
+            kinds: [10000], // NIP-51 mute list
+            authors: [user.pubkey],
+            limit: 1, // Only need the latest mute list
+          },
+        ],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+      );
+
+      // Return the most recent mute list event
+      return events.length > 0 ? (events[0] as MuteListEvent) : null;
+    },
+    enabled: !!user?.pubkey,
+    staleTime: 30000, // Consider data stale after 30 seconds
+  });
+
+  // Get the list of muted pubkeys from the mute list
+  const mutedPubkeys = muteList?.tags
+    .filter((tag) => tag[0] === "p")
+    .map((tag) => tag[1]) || [];
+
+  // Check if a pubkey is muted
+  const isMuted = (pubkey: string): boolean => {
+    return mutedPubkeys.includes(pubkey);
+  };
+
+  // Add a pubkey to the mute list
+  const mutePubkey = async (pubkey: string, reason: string = "") => {
+    if (!user) {
+      throw new Error("User must be logged in to mute");
+    }
+
+    // Get current mute list tags
+    const currentTags = muteList?.tags || [];
+    
+    // Check if already muted
+    if (currentTags.some(tag => tag[0] === "p" && tag[1] === pubkey)) {
+      return; // Already muted
+    }
+
+    // Add the new muted pubkey
+    const newTags = [
+      ...currentTags,
+      reason ? ["p", pubkey, "", reason] : ["p", pubkey]
+    ];
+
+    await publishEvent({
+      kind: 10000,
+      content: "",
+      tags: newTags,
+    });
+
+    // Invalidate queries to refresh the mute list
+    queryClient.invalidateQueries({ queryKey: ["muteList", user.pubkey] });
+  };
+
+  // Remove a pubkey from the mute list
+  const unmutePubkey = async (pubkey: string) => {
+    if (!user) {
+      throw new Error("User must be logged in to unmute");
+    }
+
+    if (!muteList) {
+      return; // No mute list exists
+    }
+
+    // Remove the pubkey from the mute list
+    const newTags = muteList.tags.filter(
+      tag => !(tag[0] === "p" && tag[1] === pubkey)
+    );
+
+    await publishEvent({
+      kind: 10000,
+      content: "",
+      tags: newTags,
+    });
+
+    // Invalidate queries to refresh the mute list
+    queryClient.invalidateQueries({ queryKey: ["muteList", user.pubkey] });
+  };
+
+  // Get the mute reason for a specific pubkey
+  const getMuteReason = (pubkey: string): string => {
+    const muteTag = muteList?.tags.find(
+      tag => tag[0] === "p" && tag[1] === pubkey
+    );
+    return muteTag?.[3] || ""; // Reason is in the 4th element (index 3)
+  };
+
+  return {
+    muteList,
+    mutedPubkeys,
+    isLoading,
+    isMuted,
+    mutePubkey,
+    unmutePubkey,
+    getMuteReason,
+    refetch,
+  };
+}
