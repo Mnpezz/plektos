@@ -84,27 +84,34 @@ export function LocationSearch({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <Label>Location</Label>
+      <Label className="text-sm">Location</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between"
+            className="w-full justify-between text-left max-w-full"
           >
-            {value ? (
-              <span className="truncate">{value}</span>
-            ) : (
-              <span className="text-muted-foreground">
-                Search for a location...
-              </span>
-            )}
+            <div className="flex-1 min-w-0">
+              {value ? (
+                <span 
+                  className="truncate block text-sm" 
+                  title={value}
+                >
+                  {value}
+                </span>
+              ) : (
+                <span className="text-muted-foreground text-sm">
+                  Search for a location...
+                </span>
+              )}
+            </div>
             <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[--radix-popover-trigger-width] p-0"
+          className="w-[--radix-popover-trigger-width] p-0 max-w-[90vw]"
           align="start"
         >
           <Command>
@@ -115,6 +122,7 @@ export function LocationSearch({
                 onChange(search);
                 handleSearch(search);
               }}
+              className="text-sm"
             />
             <CommandList>
               <CommandEmpty>
@@ -132,9 +140,12 @@ export function LocationSearch({
                     key={result.place_id}
                     value={result.display_name}
                     onSelect={() => handleSelect(result)}
+                    className="text-sm"
                   >
-                    <MapPin className="mr-2 h-4 w-4" />
-                    <span>{result.display_name}</span>
+                    <MapPin className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="truncate block" title={result.display_name}>
+                      {result.display_name}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

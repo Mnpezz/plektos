@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import { ZappableLightningAddress } from "@/components/ZappableLightningAddress";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import type {
   DateBasedEvent,
   TimeBasedEvent,
@@ -24,47 +24,6 @@ export function Profile() {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
   const [pubkey, setPubkey] = useState<string | undefined>(undefined);
-
-  // Initialize all hooks at the top
-  const author = useAuthor(pubkey);
-  const { data: createdEvents = [], isLoading: isLoadingCreated } = useQuery({
-    queryKey: ["createdEvents", pubkey],
-    queryFn: async () => {
-      if (!pubkey) return [];
-      const events = await nostr.query([
-        { kinds: [31922, 31923], authors: [pubkey] },
-      ]);
-      return events as unknown as (DateBasedEvent | TimeBasedEvent)[];
-    },
-    enabled: !!pubkey,
-  });
-
-  const { data: rsvps = [], isLoading: isLoadingRSVPs } = useQuery({
-    queryKey: ["rsvps", pubkey],
-    queryFn: async () => {
-      if (!pubkey) return [];
-      const events = await nostr.query([{ kinds: [31925], authors: [pubkey] }]);
-      return events as unknown as EventRSVP[];
-    },
-    enabled: !!pubkey,
-  });
-
-  // Fetch the actual events that were RSVP'd to
-  const { data: rsvpEvents = [], isLoading: isLoadingRsvpEvents } = useQuery({
-    queryKey: ["rsvpEvents", rsvps],
-    queryFn: async () => {
-      if (!rsvps.length) return [];
-      const eventIds = rsvps
-        .map((rsvp) => rsvp.tags.find((tag) => tag[0] === "e")?.[1])
-        .filter((id): id is string => id !== undefined);
-      if (!eventIds.length) return [];
-      const events = await nostr.query([
-        { kinds: [31922, 31923], ids: eventIds },
-      ]);
-      return events as unknown as (DateBasedEvent | TimeBasedEvent)[];
-    },
-    enabled: !!rsvps.length,
-  });
 
   // Decode npub to get pubkey
   useEffect(() => {
@@ -80,6 +39,60 @@ export function Profile() {
     }
   }, [npub]);
 
+  // Primary author data - show this ASAP
+  const author = useAuthor(pubkey);
+  
+  // Secondary data with timeouts - don't block the UI
+  const { data: createdEvents = [], isLoading: isLoadingCreated, error: createdEventsError } = useQuery({
+    queryKey: ["createdEvents", pubkey],
+    queryFn: async ({ signal }) => {
+      if (!pubkey) return [];
+      const events = await nostr.query(
+        [{ kinds: [31922, 31923], authors: [pubkey] }],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
+      );
+      return events as unknown as (DateBasedEvent | TimeBasedEvent)[];
+    },
+    enabled: !!pubkey,
+    retry: 1,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  const { data: rsvps = [], isLoading: isLoadingRSVPs, error: rsvpsError } = useQuery({
+    queryKey: ["rsvps", pubkey],
+    queryFn: async ({ signal }) => {
+      if (!pubkey) return [];
+      const events = await nostr.query(
+        [{ kinds: [31925], authors: [pubkey] }],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
+      );
+      return events as unknown as EventRSVP[];
+    },
+    enabled: !!pubkey,
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Fetch the actual events that were RSVP'd to
+  const { data: rsvpEvents = [], isLoading: isLoadingRsvpEvents, error: rsvpEventsError } = useQuery({
+    queryKey: ["rsvpEvents", rsvps],
+    queryFn: async ({ signal }) => {
+      if (!rsvps.length) return [];
+      const eventIds = rsvps
+        .map((rsvp) => rsvp.tags.find((tag) => tag[0] === "e")?.[1])
+        .filter((id): id is string => id !== undefined);
+      if (!eventIds.length) return [];
+      const events = await nostr.query(
+        [{ kinds: [31922, 31923], ids: eventIds }],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
+      );
+      return events as unknown as (DateBasedEvent | TimeBasedEvent)[];
+    },
+    enabled: !!rsvps.length,
+    retry: 1,
+    staleTime: 30000,
+  });
+
   const metadata = author.data?.metadata;
   const displayName =
     metadata?.name || metadata?.display_name || pubkey?.slice(0, 8) || "";
@@ -91,25 +104,26 @@ export function Profile() {
 
   const isOwnProfile = user?.pubkey === pubkey;
 
+  // Handle invalid npub
   if (!pubkey) {
-    return <div>Profile not found</div>;
+    return (
+      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+        <Card className="rounded-none sm:rounded-lg">
+          <CardContent className="p-6 text-center">
+            <p className="text-destructive">Invalid profile address</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
-  if (
-    author.isLoading ||
-    isLoadingCreated ||
-    isLoadingRSVPs ||
-    isLoadingRsvpEvents
-  ) {
-    return <div>Loading profile...</div>;
-  }
-
+  // Show profile info immediately when available, even if other sections are loading
   return (
     <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8 space-y-3 sm:space-y-6">
       <Card className="rounded-none sm:rounded-lg">
         <CardHeader className="relative p-3 sm:p-6">
           {/* Action menu positioned absolutely in top right corner */}
-          {user && !isOwnProfile && (
+          {user && !isOwnProfile && pubkey && (
             <div className="absolute top-3 right-3 sm:top-6 sm:right-6 z-10">
               <UserActionsMenu 
                 pubkey={pubkey} 
@@ -120,44 +134,71 @@ export function Profile() {
 
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
-              <AvatarImage src={profileImage} alt={displayName} />
-              <AvatarFallback className="text-lg">
-                {displayName.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
+              {author.isLoading ? (
+                <div className="w-full h-full bg-muted animate-pulse rounded-full" />
+              ) : (
+                <>
+                  <AvatarImage src={profileImage} alt={displayName} />
+                  <AvatarFallback className="text-lg">
+                    {displayName.slice(0, 2).toUpperCase() || "?"}
+                  </AvatarFallback>
+                </>
+              )}
             </Avatar>
             <div className="space-y-2">
-              <CardTitle className="text-xl sm:text-2xl pr-12 sm:pr-0">{displayName}</CardTitle>
-              <div className="flex flex-wrap gap-2">
-                {nip05 && (
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    ✓ {nip05}
-                  </Badge>
+              <CardTitle className="text-xl sm:text-2xl pr-12 sm:pr-0">
+                {author.isLoading ? (
+                  <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+                ) : (
+                  displayName || "Unknown User"
                 )}
-                {lightningAddress && user && !isOwnProfile ? (
-                  <ZappableLightningAddress
-                    lightningAddress={lightningAddress}
-                    pubkey={pubkey}
-                    displayName={displayName}
-                    eventKind={0}
-                  />
-                ) : lightningAddress ? (
-                  <Badge variant="outline" className="font-mono text-xs">
-                    ⚡ {lightningAddress}
-                  </Badge>
-                ) : null}
+              </CardTitle>
+              <div className="flex flex-wrap gap-2">
+                {author.isLoading ? (
+                  <div className="h-5 w-24 bg-muted animate-pulse rounded" />
+                ) : (
+                  <>
+                    {nip05 && (
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        ✓ {nip05}
+                      </Badge>
+                    )}
+                    {lightningAddress && user && !isOwnProfile ? (
+                      <ZappableLightningAddress
+                        lightningAddress={lightningAddress}
+                        pubkey={pubkey}
+                        displayName={displayName}
+                        eventKind={0}
+                      />
+                    ) : lightningAddress ? (
+                      <Badge variant="outline" className="font-mono text-xs">
+                        ⚡ {lightningAddress}
+                      </Badge>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
           </div>
         </CardHeader>
+        
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-6">
-          {about && (
+          {/* About section - show immediately when available */}
+          {author.isLoading ? (
+            <div className="space-y-2">
+              <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-full bg-muted animate-pulse rounded" />
+              <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+            </div>
+          ) : about ? (
             <div>
               <h3 className="font-semibold mb-2">About</h3>
               <p className="text-muted-foreground">{about}</p>
             </div>
-          )}
+          ) : null}
 
-          {website && (
+          {/* Website section - show immediately when available */}
+          {!author.isLoading && website && (
             <div>
               <h3 className="font-semibold mb-2">Website</h3>
               <a
@@ -172,10 +213,18 @@ export function Profile() {
             </div>
           )}
 
+          {/* Created Events section */}
           <div>
             <h3 className="font-semibold mb-4">Created Events</h3>
             <div className="space-y-4">
-              {createdEvents.length === 0 ? (
+              {isLoadingCreated ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading events...</span>
+                </div>
+              ) : createdEventsError ? (
+                <p className="text-muted-foreground">Unable to load created events</p>
+              ) : createdEvents.length === 0 ? (
                 <p className="text-muted-foreground">No events created yet</p>
               ) : (
                 createdEvents.map((event) => {
@@ -204,11 +253,26 @@ export function Profile() {
             </div>
           </div>
 
+          {/* RSVP'd Events section */}
           <div>
             <h3 className="font-semibold mb-4">RSVP'd Events</h3>
             <div className="space-y-4">
-              {rsvps.length === 0 ? (
+              {isLoadingRSVPs ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading RSVPs...</span>
+                </div>
+              ) : rsvpsError ? (
+                <p className="text-muted-foreground">Unable to load RSVPs</p>
+              ) : rsvps.length === 0 ? (
                 <p className="text-muted-foreground">No RSVPs yet</p>
+              ) : isLoadingRsvpEvents ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading RSVP event details...</span>
+                </div>
+              ) : rsvpEventsError ? (
+                <p className="text-muted-foreground">Unable to load RSVP event details</p>
               ) : (
                 rsvps.map((rsvp) => {
                   const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];

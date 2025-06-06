@@ -99,3 +99,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile-specific dialog overrides */
+@layer utilities {
+  .mobile-dialog-content {
+    width: 90vw !important;
+    max-width: 90vw !important;
+    max-height: 90vh !important;
+    margin: auto !important;
+  }
+  
+  @screen sm {
+    .mobile-dialog-content {
+      width: auto !important;
+      max-width: 42rem !important; /* sm:max-w-2xl */
+    }
+  }
+  
+  @screen lg {
+    .mobile-dialog-content {
+      max-width: 56rem !important; /* lg:max-w-4xl */
+    }
+  }
+}

@@ -56,6 +56,19 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
   const { mutate: updateEvent } = useNostrPublish();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile on mount and window resize
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   // Extract current event data
   const getInitialFormData = useCallback(() => {
@@ -289,13 +302,21 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
           Edit Event
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Event</DialogTitle>
+      <DialogContent 
+        className="mobile-dialog-content overflow-y-auto p-3 sm:p-6"
+        onOpenAutoFocus={(e) => {
+          // Prevent auto-focus on mobile to avoid virtual keyboard issues
+          if (isMobile) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <DialogHeader className="pb-2 sm:pb-4">
+          <DialogTitle className="text-lg sm:text-xl">Edit Event</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <Label htmlFor="title">Event Title</Label>
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
+          <div className="w-full max-w-full">
+            <Label htmlFor="title" className="text-sm">Event Title</Label>
             <Input
               id="title"
               value={formData.title}
@@ -303,11 +324,12 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
                 setFormData((prev) => ({ ...prev, title: e.target.value }))
               }
               required
+              className="text-sm w-full max-w-full"
             />
           </div>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
+          <div className="w-full max-w-full">
+            <Label htmlFor="description" className="text-sm">Description</Label>
             <Textarea
               id="description"
               value={formData.description}
@@ -315,6 +337,7 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
                 setFormData((prev) => ({ ...prev, description: e.target.value }))
               }
               required
+              className="text-sm min-h-[100px] w-full max-w-full resize-none"
             />
           </div>
 
@@ -346,94 +369,130 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
             }
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate" className="text-sm font-medium">
-                Start Date
-              </Label>
-              <Calendar
-                id="startDate"
-                mode="single"
-                selected={
-                  formData.startDate
-                    ? new Date(formData.startDate + "T12:00:00Z")
-                    : undefined
-                }
-                onSelect={(date) => {
-                  if (date) {
-                    // Create date in UTC noon to avoid timezone issues
-                    const selectedDate = new Date(
-                      Date.UTC(
-                        date.getFullYear(),
-                        date.getMonth(),
-                        date.getDate(),
-                        12,
-                        0,
-                        0,
-                        0
-                      )
-                    );
-                    setFormData((prev) => ({
-                      ...prev,
-                      startDate: selectedDate.toISOString().split("T")[0],
-                    }));
+          <div className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="startDate" className="text-sm font-medium">
+                  Start Date
+                </Label>
+                <Calendar
+                  id="startDate"
+                  mode="single"
+                  selected={
+                    formData.startDate
+                      ? new Date(formData.startDate + "T12:00:00Z")
+                      : undefined
                   }
-                }}
-                disabled={(date) => {
-                  const today = new Date();
-                  today.setUTCHours(0, 0, 0, 0);
-                  return date < today;
-                }}
-                className="rounded-md border"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endDate" className="text-sm font-medium">
-                End Date
-              </Label>
-              <Calendar
-                id="endDate"
-                mode="single"
-                selected={
-                  formData.endDate
-                    ? new Date(formData.endDate + "T12:00:00Z")
-                    : undefined
-                }
-                onSelect={(date) => {
-                  if (date) {
-                    // Create date in UTC noon to avoid timezone issues
-                    const selectedDate = new Date(
-                      Date.UTC(
-                        date.getFullYear(),
-                        date.getMonth(),
-                        date.getDate(),
-                        12,
-                        0,
-                        0,
-                        0
-                      )
-                    );
-                    setFormData((prev) => ({
-                      ...prev,
-                      endDate: selectedDate.toISOString().split("T")[0],
-                    }));
+                  onSelect={(date) => {
+                    if (date) {
+                      // Create date in UTC noon to avoid timezone issues
+                      const selectedDate = new Date(
+                        Date.UTC(
+                          date.getFullYear(),
+                          date.getMonth(),
+                          date.getDate(),
+                          12,
+                          0,
+                          0,
+                          0
+                        )
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        startDate: selectedDate.toISOString().split("T")[0],
+                      }));
+                    }
+                  }}
+                  disabled={(date) => {
+                    const today = new Date();
+                    today.setUTCHours(0, 0, 0, 0);
+                    return date < today;
+                  }}
+                  className="rounded-md border w-full mx-auto max-w-[280px] sm:max-w-none"
+                  classNames={{
+                    months: "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
+                    month: "space-y-2",
+                    caption: "flex justify-center p-1 relative items-center",
+                    caption_label: "text-xs sm:text-sm font-medium",
+                    table: "w-full border-collapse space-y-1",
+                    head_row: "flex",
+                    head_cell: "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
+                    row: "flex w-full mt-1 sm:mt-2",
+                    cell: "text-center text-xs sm:text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                    day: "h-7 w-7 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 text-xs sm:text-sm",
+                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_today: "bg-accent text-accent-foreground",
+                    day_outside: "text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-50",
+                    day_hidden: "invisible",
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate" className="text-sm font-medium">
+                  End Date
+                </Label>
+                <Calendar
+                  id="endDate"
+                  mode="single"
+                  selected={
+                    formData.endDate
+                      ? new Date(formData.endDate + "T12:00:00Z")
+                      : undefined
                   }
-                }}
-                disabled={(date) => {
-                  const startDate = formData.startDate
-                    ? new Date(formData.startDate + "T12:00:00Z")
-                    : new Date();
-                  startDate.setUTCHours(0, 0, 0, 0);
-                  return date < startDate;
-                }}
-                className="rounded-md border"
-              />
+                  onSelect={(date) => {
+                    if (date) {
+                      // Create date in UTC noon to avoid timezone issues
+                      const selectedDate = new Date(
+                        Date.UTC(
+                          date.getFullYear(),
+                          date.getMonth(),
+                          date.getDate(),
+                          12,
+                          0,
+                          0,
+                          0
+                        )
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        endDate: selectedDate.toISOString().split("T")[0],
+                      }));
+                    }
+                  }}
+                  disabled={(date) => {
+                    const startDate = formData.startDate
+                      ? new Date(formData.startDate + "T12:00:00Z")
+                      : new Date();
+                    startDate.setUTCHours(0, 0, 0, 0);
+                    return date < startDate;
+                  }}
+                  className="rounded-md border w-full mx-auto max-w-[280px] sm:max-w-none"
+                  classNames={{
+                    months: "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
+                    month: "space-y-2",
+                    caption: "flex justify-center p-1 relative items-center",
+                    caption_label: "text-xs sm:text-sm font-medium",
+                    table: "w-full border-collapse space-y-1",
+                    head_row: "flex",
+                    head_cell: "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
+                    row: "flex w-full mt-1 sm:mt-2",
+                    cell: "text-center text-xs sm:text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                    day: "h-7 w-7 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 text-xs sm:text-sm",
+                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_today: "bg-accent text-accent-foreground",
+                    day_outside: "text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-50",
+                    day_hidden: "invisible",
+                  }}
+                />
+              </div>
             </div>
           </div>
 
           {/* Only show time fields for time-based events or if times are already set */}
           {(event.kind === 31923 || formData.startTime || formData.endTime) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Start Time {event.kind === 31922 && "(Optional)"}</Label>
                 <TimePicker
@@ -458,19 +517,19 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
           {/* Only show timezone for time-based events */}
           {event.kind === 31923 && (
             <div>
-              <Label>Timezone</Label>
+              <Label className="text-sm">Timezone</Label>
               <Select
                 value={formData.timezone}
                 onValueChange={(value) =>
                   setFormData((prev) => ({ ...prev, timezone: value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {commonTimezones.map((tz) => (
-                    <SelectItem key={tz} value={tz}>
+                    <SelectItem key={tz} value={tz} className="text-sm">
                       {tz}
                     </SelectItem>
                   ))}
@@ -486,16 +545,17 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
             }
           />
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
+              className="w-full"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Updating..." : "Update Event"}
             </Button>
           </div>

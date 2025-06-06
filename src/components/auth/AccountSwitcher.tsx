@@ -9,6 +9,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  User,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +29,8 @@ import {
 import { useLoggedInAccounts, type Account } from "@/hooks/useLoggedInAccounts";
 import { genUserName } from "@/lib/genUserName";
 import { useTheme } from "@/components/theme-provider";
+import { nip19 } from "nostr-tools";
+import { Link } from "react-router-dom";
 
 interface AccountSwitcherProps {
   onAddAccountClick: () => void;
@@ -96,6 +99,16 @@ export function AccountSwitcher({ onAddAccountClick }: AccountSwitcherProps) {
         >
           <UserPlus className="w-4 h-4" />
           <span>Add another account</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild className="cursor-pointer p-2 rounded-md">
+          <Link
+            to={`/profile/${nip19.npubEncode(currentUser.pubkey)}`}
+            className="flex items-center gap-2"
+          >
+            <User className="w-4 h-4" />
+            <span>Profile</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>

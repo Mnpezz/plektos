@@ -99,13 +99,13 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
         onValueChange={(v) => setUploadTab(v as "upload" | "url")}
       >
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="upload">Upload Image</TabsTrigger>
-          <TabsTrigger value="url">Image URL</TabsTrigger>
+          <TabsTrigger value="upload" className="text-xs sm:text-sm">Upload</TabsTrigger>
+          <TabsTrigger value="url" className="text-xs sm:text-sm">URL</TabsTrigger>
         </TabsList>
         <TabsContent value="upload">
           <div
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
+              "border-2 border-dashed rounded-lg p-4 sm:p-8 text-center cursor-pointer transition-colors",
               dragOver && "border-primary bg-primary/5",
               isUploading && "opacity-50 cursor-not-allowed"
             )}
@@ -130,20 +130,23 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
               className="hidden"
               disabled={isUploading}
             />
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               <div className="flex justify-center">
-                <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                <ImageIcon className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
+              <div className="space-y-1 sm:space-y-2">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {isUploading ? (
                     "Uploading..."
                   ) : (
-                    <>Drag and drop your image here, or click to browse</>
+                    <>
+                      <span className="hidden sm:inline">Drag and drop your image here, or click to browse</span>
+                      <span className="sm:hidden">Tap to select image</span>
+                    </>
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Max file size: 10MB
+                  Max: 10MB
                 </p>
               </div>
             </div>
@@ -152,7 +155,7 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
         <TabsContent value="url">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="imageUrl">Image URL</Label>
+              <Label htmlFor="imageUrl" className="text-sm">Image URL</Label>
               <Input
                 id="imageUrl"
                 value={value}
@@ -161,6 +164,7 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
                   setPreviewUrl(e.target.value);
                 }}
                 placeholder="https://..."
+                className="text-xs sm:text-sm"
               />
             </div>
           </div>
@@ -171,11 +175,11 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
       {(previewUrl || value) && (
         <Card>
           <CardContent className="p-4">
-            <div className="relative aspect-video">
+            <div className="relative max-w-full">
               <img
                 src={previewUrl || value}
                 alt="Preview"
-                className="object-contain w-full h-full rounded-md"
+                className="object-contain w-full max-w-full max-h-[300px] sm:max-h-[400px] rounded-md"
               />
               <Button
                 variant="destructive"
