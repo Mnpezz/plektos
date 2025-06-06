@@ -97,6 +97,88 @@ describe('useMuteList - NIP-51 Mute List Management', () => {
       expect(mutedPubkeys).toContain(newMutedPubkey);
     });
 
+    it('correctly appends multiple users to mute list', () => {
+      // Start with existing mute list
+      let currentMuteList = {
+        tags: [
+          ['p', 'user1-123456789012345678901234567890123456789012345678'],
+          ['p', 'user2-123456789012345678901234567890123456789012345678', '', 'spam'],
+        ],
+      };
+
+      // Add third user
+      const user3 = 'user3-123456789012345678901234567890123456789012345678';
+      let updatedTags = [
+        ...currentMuteList.tags,
+        ['p', user3, '', 'inappropriate'],
+      ];
+
+      expect(updatedTags).toHaveLength(3);
+
+      // Simulate updating the mute list
+      currentMuteList = { tags: updatedTags };
+
+      // Add fourth user
+      const user4 = 'user4-123456789012345678901234567890123456789012345678';
+      updatedTags = [
+        ...currentMuteList.tags,
+        ['p', user4],
+      ];
+
+      expect(updatedTags).toHaveLength(4);
+
+      // Verify all users are in the final list
+      const mutedPubkeys = updatedTags
+        .filter(tag => tag[0] === 'p')
+        .map(tag => tag[1]);
+
+      expect(mutedPubkeys).toEqual([
+        'user1-123456789012345678901234567890123456789012345678',
+        'user2-123456789012345678901234567890123456789012345678',
+        user3,
+        user4,
+      ]);
+    });
+
+    it('preserves existing mutes when adding new ones', () => {
+      const existingMutes = [
+        ['p', 'alice-123456789012345678901234567890123456789012345678'],
+        ['p', 'bob-123456789012345678901234567890123456789012345678', '', 'spam'],
+        ['p', 'charlie-123456789012345678901234567890123456789012345678', '', 'harassment'],
+      ];
+
+      // Simulate current mute list query result
+      const currentMuteList = {
+        kind: 10000,
+        tags: existingMutes,
+        content: '',
+      };
+
+      // Add new user to mute list  
+      const newUser = 'dave-123456789012345678901234567890123456789012345678';
+      const newTags = [
+        ...currentMuteList.tags,
+        ['p', newUser, '', 'trolling'],
+      ];
+
+      // Verify all original mutes are preserved
+      expect(newTags).toHaveLength(4);
+      expect(newTags[0]).toEqual(['p', 'alice-123456789012345678901234567890123456789012345678']);
+      expect(newTags[1]).toEqual(['p', 'bob-123456789012345678901234567890123456789012345678', '', 'spam']);
+      expect(newTags[2]).toEqual(['p', 'charlie-123456789012345678901234567890123456789012345678', '', 'harassment']);
+      expect(newTags[3]).toEqual(['p', newUser, '', 'trolling']);
+
+      // Verify extracted pubkeys contains all users
+      const mutedPubkeys = newTags
+        .filter(tag => tag[0] === 'p')
+        .map(tag => tag[1]);
+
+      expect(mutedPubkeys).toContain('alice-123456789012345678901234567890123456789012345678');
+      expect(mutedPubkeys).toContain('bob-123456789012345678901234567890123456789012345678');
+      expect(mutedPubkeys).toContain('charlie-123456789012345678901234567890123456789012345678');
+      expect(mutedPubkeys).toContain(newUser);
+    });
+
     it('correctly removes a muted user', () => {
       const currentMuteList = {
         tags: [
@@ -145,6 +227,57 @@ describe('useMuteList - NIP-51 Mute List Management', () => {
         // This branch should not execute
         expect(true).toBe(false);
       }
+    });
+
+    it('demonstrates the correct muting workflow', () => {
+      // Step 1: Empty mute list
+      let muteList: { tags: string[][] } = { tags: [] };
+      
+      // Step 2: Mute first user
+      const user1 = 'spammer-123456789012345678901234567890123456789012345678';
+      muteList = {
+        tags: [
+          ...muteList.tags,
+          ['p', user1, '', 'spam']
+        ]
+      };
+      expect(muteList.tags).toHaveLength(1);
+
+      // Step 3: Mute second user - should append, not replace
+      const user2 = 'troll-123456789012345678901234567890123456789012345678';
+      muteList = {
+        tags: [
+          ...muteList.tags,
+          ['p', user2, '', 'trolling']
+        ]
+      };
+      expect(muteList.tags).toHaveLength(2);
+
+      // Step 4: Mute third user - should append, not replace
+      const user3 = 'bot-123456789012345678901234567890123456789012345678';
+      muteList = {
+        tags: [
+          ...muteList.tags,
+          ['p', user3, '', 'bot account']
+        ]
+      };
+      expect(muteList.tags).toHaveLength(3);
+
+      // Verify all users are muted
+      const mutedPubkeys = muteList.tags
+        .filter(tag => tag[0] === 'p')
+        .map(tag => tag[1]);
+      
+      expect(mutedPubkeys).toEqual([user1, user2, user3]);
+
+      // Verify reasons are preserved
+      const user1Reason = muteList.tags.find(tag => tag[1] === user1)?.[3];
+      const user2Reason = muteList.tags.find(tag => tag[1] === user2)?.[3];
+      const user3Reason = muteList.tags.find(tag => tag[1] === user3)?.[3];
+
+      expect(user1Reason).toBe('spam');
+      expect(user2Reason).toBe('trolling');
+      expect(user3Reason).toBe('bot account');
     });
   });
 

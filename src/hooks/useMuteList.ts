@@ -33,14 +33,21 @@ export function useMuteList() {
           {
             kinds: [10000], // NIP-51 mute list
             authors: [user.pubkey],
-            limit: 1, // Only need the latest mute list
+            limit: 10, // Get more events to ensure we have the latest
           },
         ],
         { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
       );
-
-      // Return the most recent mute list event
-      return events.length > 0 ? (events[0] as MuteListEvent) : null;
+      
+      if (events.length === 0) {
+        return null;
+      }
+      
+      // Sort by created_at descending to ensure we get the most recent
+      const sortedEvents = events.sort((a, b) => b.created_at - a.created_at);
+      const latestEvent = sortedEvents[0] as MuteListEvent;
+      
+      return latestEvent;
     },
     enabled: !!user?.pubkey,
     staleTime: 30000, // Consider data stale after 30 seconds

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useEvents } from "@/lib/eventUtils";
+import { useEvents, useSingleEvent } from "@/lib/eventUtils";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,8 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { data: events, isLoading, refetch: refetchEvents } = useEvents();
+  const { data: events, isLoading: isLoadingEvents, refetch: refetchEvents } = useEvents();
+  const { data: singleEvent, isLoading: isLoadingSingleEvent } = useSingleEvent(eventId);
   const { user } = useCurrentUser();
   const { mutate: publishRSVP } = useNostrPublish();
   const { mutate: publishShare } = useNostrPublish();
@@ -113,12 +114,16 @@ export function EventDetail() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  // Determine overall loading state
+  const isLoading = isLoadingEvents || isLoadingSingleEvent;
+
   // Enhanced event update handler with proper refresh
   const handleEventUpdated = async () => {
     setIsRefreshing(true);
     try {
       // Invalidate all related queries
       await queryClient.invalidateQueries({ queryKey: ["events"] });
+      await queryClient.invalidateQueries({ queryKey: ["event"] });
       await queryClient.invalidateQueries({ queryKey: ["comments"] });
       await queryClient.invalidateQueries({ queryKey: ["reactions"] });
       
@@ -134,13 +139,41 @@ export function EventDetail() {
     }
   };
 
+  // Early return for loading states
+  if (isLoading || isRefreshing) {
+    return (
+      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+        <Card className="rounded-none sm:rounded-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <div className="inline-flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                <span>{isRefreshing ? "Refreshing event details..." : "Loading event..."}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Decode the event identifier (supports both naddr and nevent)
   let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
   let eventIdFromIdentifier: string | undefined;
   
   try {
     if (!eventId) {
-      return <div>No event identifier provided</div>;
+      return (
+        <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+          <Card className="rounded-none sm:rounded-lg">
+            <CardContent className="p-6">
+              <div className="text-center py-12">
+                <p className="text-destructive">No event identifier provided</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
     }
 
     const decodedEvent = decodeEventIdentifier(eventId);
@@ -148,11 +181,16 @@ export function EventDetail() {
     if (decodedEvent.type === 'naddr') {
       // For replaceable events, find by coordinate (kind:pubkey:d)
       const { kind, pubkey, identifier } = decodedEvent.data;
-      targetEvent = events.find((e) => 
+      targetEvent = events?.find((e) => 
         e.kind === kind && 
         e.pubkey === pubkey && 
         e.tags.some(tag => tag[0] === 'd' && tag[1] === identifier)
       ) as DateBasedEvent | TimeBasedEvent | null;
+      
+      // If not found in events list, try the single event result
+      if (!targetEvent && singleEvent) {
+        targetEvent = singleEvent;
+      }
       
       // Store the event ID for RSVP filtering
       eventIdFromIdentifier = targetEvent?.id;
@@ -161,26 +199,58 @@ export function EventDetail() {
       const eventId = decodedEvent.type === 'raw' ? decodedEvent.data : 
                      decodedEvent.type === 'note' ? decodedEvent.data :
                      decodedEvent.data.id;
-      targetEvent = events.find((e) => e.id === eventId) as DateBasedEvent | TimeBasedEvent | null;
+      targetEvent = events?.find((e) => e.id === eventId) as DateBasedEvent | TimeBasedEvent | null;
+      
+      // If not found in events list, try the single event result
+      if (!targetEvent && singleEvent) {
+        targetEvent = singleEvent;
+      }
+      
       eventIdFromIdentifier = eventId;
     }
   } catch (error) {
     console.error("Error decoding event identifier:", error);
-    return <div>Invalid event address</div>;
+    return (
+      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+        <Card className="rounded-none sm:rounded-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <p className="text-destructive">Invalid event address</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const event = targetEvent;
 
-  if (isLoading || isRefreshing) {
-    return <div>{isRefreshing ? "Refreshing event details..." : "Loading event..."}</div>;
-  }
-
   if (!event) {
-    return <div>Event not found.</div>;
+    return (
+      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+        <Card className="rounded-none sm:rounded-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <h2 className="text-xl font-semibold mb-2">Event not found</h2>
+              <p className="text-muted-foreground mb-6">
+                The event you're looking for doesn't exist or may have been deleted.
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => navigate("/")}
+                className="inline-flex items-center gap-2"
+              >
+                <span>← Back to Events</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Filter RSVP events first
-  const rsvpEvents = events
+  const rsvpEvents = (events || [])
     .filter((e): e is EventRSVP => e.kind === 31925)
     .filter((e) =>
       e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier)

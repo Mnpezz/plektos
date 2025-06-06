@@ -2,6 +2,7 @@ import { useNostr } from "@nostrify/react";
 import { useQuery } from "@tanstack/react-query";
 import type { DateBasedEvent, TimeBasedEvent, EventRSVP } from "./eventTypes";
 import { cacheEvent } from "./indexedDB";
+import { nip19 } from "nostr-tools";
 
 export function useEvents() {
   const { nostr } = useNostr();
@@ -12,7 +13,7 @@ export function useEvents() {
       console.log("Fetching events...");
       console.log("Nostr instance:", nostr);
 
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]); // Increased timeout
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(3000)]); // Reduced timeout for faster feedback
       try {
         // Query for both kinds of events with more specific parameters
         const filters = [
@@ -103,8 +104,79 @@ export function useEvents() {
         throw error;
       }
     },
-    initialData: [],
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+  });
+}
+
+// Hook for loading a specific event by its identifier
+export function useSingleEvent(eventIdentifier: string | undefined) {
+  const { nostr } = useNostr();
+
+  return useQuery({
+    queryKey: ["event", eventIdentifier],
+    queryFn: async (c) => {
+      if (!eventIdentifier) {
+        throw new Error("No event identifier provided");
+      }
+
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
+      
+      try {
+        // Try to decode the identifier to determine the query type
+        const decoded = nip19.decode(eventIdentifier);
+        
+        if (decoded.type === 'naddr') {
+          // For replaceable events, query by coordinate
+          const { kind, pubkey, identifier } = decoded.data;
+          const events = await nostr.query([{
+            kinds: [kind],
+            authors: [pubkey],
+            "#d": [identifier],
+            limit: 1
+          }], { signal });
+          
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+        } else if (decoded.type === 'nevent' || decoded.type === 'note') {
+          // For regular events, query by ID
+          const eventId = decoded.type === 'note' ? decoded.data : decoded.data.id;
+          const events = await nostr.query([{
+            ids: [eventId],
+            limit: 1
+          }], { signal });
+          
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+        } else {
+          // Try treating as raw hex ID
+          const events = await nostr.query([{
+            ids: [eventIdentifier],
+            limit: 1
+          }], { signal });
+          
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+        }
+      } catch (error) {
+        console.error("Error fetching single event:", error);
+        // Try one more query with the raw identifier as a fallback
+        try {
+          const events = await nostr.query([{
+            ids: [eventIdentifier],
+            limit: 1
+          }], { signal });
+          
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+        } catch (fallbackError) {
+          console.error("Fallback query also failed:", fallbackError);
+          return null;
+        }
+      }
+    },
+    enabled: !!eventIdentifier,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
   });
 }
