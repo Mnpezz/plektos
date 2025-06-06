@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { useEnhancedNostrPublish } from '@/hooks/useEnhancedNostrPublish';
 import { useToast } from '@/hooks/useToast';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Loader2, Upload } from 'lucide-react';
 import { NSchema as n, type NostrMetadata } from '@nostrify/nostrify';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,7 +25,7 @@ export const EditProfileForm: React.FC = () => {
   const queryClient = useQueryClient();
 
   const { user, metadata } = useCurrentUser();
-  const { mutateAsync: publishEvent, isPending } = useNostrPublish();
+  const { mutateAsync: publishEvent, isPending } = useEnhancedNostrPublish();
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
   const { toast } = useToast();
 
@@ -40,7 +39,7 @@ export const EditProfileForm: React.FC = () => {
       banner: '',
       website: '',
       nip05: '',
-      bot: false,
+      lud16: '',
     },
   });
 
@@ -54,7 +53,7 @@ export const EditProfileForm: React.FC = () => {
         banner: metadata.banner || '',
         website: metadata.website || '',
         nip05: metadata.nip05 || '',
-        bot: metadata.bot || false,
+        lud16: metadata.lud16 || '',
       });
     }
   }, [metadata, form]);
@@ -100,7 +99,7 @@ export const EditProfileForm: React.FC = () => {
         }
       }
 
-      // Publish the metadata event (kind 0)
+      // Publish the metadata event (kind 0) to all relays
       await publishEvent({
         kind: 0,
         content: JSON.stringify(data),
@@ -109,10 +108,11 @@ export const EditProfileForm: React.FC = () => {
       // Invalidate queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['logins'] });
       queryClient.invalidateQueries({ queryKey: ['author', user.pubkey] });
+      queryClient.invalidateQueries({ queryKey: ['userRelays', user.pubkey] });
 
       toast({
         title: 'Success',
-        description: 'Your profile has been updated',
+        description: 'Your profile has been updated and broadcasted to your home relays',
       });
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -220,12 +220,12 @@ export const EditProfileForm: React.FC = () => {
             name="nip05"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>NIP-05 Identifier</FormLabel>
+                <FormLabel>Nostr Address</FormLabel>
                 <FormControl>
                   <Input placeholder="you@example.com" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Your verified Nostr identifier.
+                  Your verified NIP-05 identifier.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -235,21 +235,17 @@ export const EditProfileForm: React.FC = () => {
 
         <FormField
           control={form.control}
-          name="bot"
+          name="lud16"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">Bot Account</FormLabel>
-                <FormDescription>
-                  Mark this account as automated or a bot.
-                </FormDescription>
-              </div>
+            <FormItem>
+              <FormLabel>Lightning Address</FormLabel>
               <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
+                <Input placeholder="you@example.com" {...field} />
               </FormControl>
+              <FormDescription>
+                Your Lightning address for receiving payments.
+              </FormDescription>
+              <FormMessage />
             </FormItem>
           )}
         />

@@ -8,10 +8,20 @@ import { nip19 } from "nostr-tools";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import { ZappableLightningAddress } from "@/components/ZappableLightningAddress";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { EditProfileForm } from "@/components/EditProfileForm";
+import { ExternalLink, Loader2, Settings } from "lucide-react";
 import type {
   DateBasedEvent,
   TimeBasedEvent,
@@ -129,6 +139,28 @@ export function Profile() {
                 pubkey={pubkey} 
                 authorName={displayName}
               />
+            </div>
+          )}
+
+          {/* Edit profile button for own profile */}
+          {user && isOwnProfile && (
+            <div className="absolute top-3 right-3 sm:top-6 sm:right-6 z-10">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Edit Profile</DialogTitle>
+                    <DialogDescription>
+                      Update your profile information and broadcast changes to the Nostr network.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <EditProfileForm />
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
@@ -327,7 +359,6 @@ export function Profile() {
                                       year: "numeric",
                                       month: "long",
                                       day: "numeric",
-                                      timeZone: "UTC",
                                     });
                                   })()
                                 : (() => {
@@ -339,7 +370,6 @@ export function Profile() {
                                       day: "numeric",
                                       hour: "numeric",
                                       minute: "numeric",
-                                      timeZone: "UTC",
                                     });
                                   })()}
                             </p>

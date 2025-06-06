@@ -33,6 +33,12 @@ import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
+import { 
+  getEventTimezone, 
+  formatEventDateTime, 
+  formatEventTime, 
+  getTimezoneAbbreviation 
+} from "@/lib/eventTimezone";
 
 export function Home() {
   console.log("Home component rendering");
@@ -65,6 +71,7 @@ export function Home() {
 
       if (event.kind === 31922) {
         // For date-only events, handle both YYYY-MM-DD and Unix timestamp formats
+        // Always use local timezone for date-based events
         try {
           if (startTime.match(/^\d{10}$/)) {
             // If start time is a short Unix timestamp (10 digits)
@@ -73,10 +80,14 @@ export function Home() {
               console.error("Invalid start date:", startTime);
               return false;
             }
+            // Use local timezone for date-based events
             eventStart = new Date(
               startDate.getFullYear(),
               startDate.getMonth(),
-              startDate.getDate()
+              startDate.getDate(),
+              0,
+              0,
+              0
             ).getTime();
             if (endTime?.match(/^\d{10}$/)) {
               const endDate = new Date(parseInt(endTime) * 1000);
@@ -90,7 +101,8 @@ export function Home() {
                 endDate.getDate(),
                 23,
                 59,
-                59
+                59,
+                999
               ).getTime();
             } else {
               eventEnd = new Date(
@@ -99,7 +111,8 @@ export function Home() {
                 startDate.getDate(),
                 23,
                 59,
-                59
+                59,
+                999
               ).getTime();
             }
           } else if (startTime.match(/^\d{13}$/)) {
@@ -109,10 +122,14 @@ export function Home() {
               console.error("Invalid start date:", startTime);
               return false;
             }
+            // Use local timezone for date-based events
             eventStart = new Date(
               startDate.getFullYear(),
               startDate.getMonth(),
-              startDate.getDate()
+              startDate.getDate(),
+              0,
+              0,
+              0
             ).getTime();
             if (endTime?.match(/^\d{13}$/)) {
               const endDate = new Date(parseInt(endTime));
@@ -126,7 +143,8 @@ export function Home() {
                 endDate.getDate(),
                 23,
                 59,
-                59
+                59,
+                999
               ).getTime();
             } else {
               eventEnd = new Date(
@@ -135,33 +153,31 @@ export function Home() {
                 startDate.getDate(),
                 23,
                 59,
-                59
+                59,
+                999
               ).getTime();
             }
           } else {
-            // If start time is in YYYY-MM-DD format
-            const startDate = new Date(startTime + "T00:00:00Z");
-            if (isNaN(startDate.getTime())) {
-              console.error("Invalid start date:", startTime);
+            // If start time is in YYYY-MM-DD format, parse in local timezone
+            const [year, month, day] = startTime.split('-').map(Number);
+            if (isNaN(year) || isNaN(month) || isNaN(day)) {
+              console.error("Invalid start date format:", startTime);
               return false;
             }
+            const startDate = new Date(year, month - 1, day, 0, 0, 0);
             eventStart = startDate.getTime();
-            if (endTime) {
-              const endDate = new Date(endTime + "T23:59:59Z");
-              if (isNaN(endDate.getTime())) {
-                console.error("Invalid end date:", endTime);
+            
+            if (endTime && endTime !== startTime) {
+              const [endYear, endMonth, endDay] = endTime.split('-').map(Number);
+              if (isNaN(endYear) || isNaN(endMonth) || isNaN(endDay)) {
+                console.error("Invalid end date format:", endTime);
                 return false;
               }
+              const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
               eventEnd = endDate.getTime();
             } else {
-              eventEnd = new Date(
-                startDate.getFullYear(),
-                startDate.getMonth(),
-                startDate.getDate(),
-                23,
-                59,
-                59
-              ).getTime();
+              const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+              eventEnd = endDate.getTime();
             }
           }
         } catch (error) {
@@ -169,9 +185,15 @@ export function Home() {
           return false;
         }
       } else {
-        // For time-based events, convert Unix timestamps to milliseconds
+        // For time-based events (kind 31923), convert Unix timestamps to milliseconds
         eventStart = parseInt(startTime) * 1000;
-        eventEnd = endTime ? parseInt(endTime) * 1000 : eventStart;
+        if (endTime) {
+          eventEnd = parseInt(endTime) * 1000;
+        } else {
+          // If no end time is specified, treat the event as lasting 2 hours from start
+          // This is a reasonable default for meetings, talks, etc.
+          eventEnd = eventStart + (2 * 60 * 60 * 1000); // Add 2 hours
+        }
       }
 
       const now = Date.now();
@@ -211,7 +233,33 @@ export function Home() {
         if (!startTime) return 0;
 
         if (event.kind === 31922) {
-          return new Date(startTime + "T00:00:00Z").getTime();
+          // For date-only events, use local timezone
+          if (startTime.match(/^\d{10}$/)) {
+            const startDate = new Date(parseInt(startTime) * 1000);
+            return new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate(),
+              0,
+              0,
+              0
+            ).getTime();
+          } else if (startTime.match(/^\d{13}$/)) {
+            const startDate = new Date(parseInt(startTime));
+            return new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate(),
+              0,
+              0,
+              0
+            ).getTime();
+          } else {
+            // YYYY-MM-DD format, parse in local timezone
+            const [year, month, day] = startTime.split('-').map(Number);
+            if (isNaN(year) || isNaN(month) || isNaN(day)) return 0;
+            return new Date(year, month - 1, day, 0, 0, 0).getTime();
+          }
         } else {
           return parseInt(startTime) * 1000;
         }
@@ -430,6 +478,9 @@ export function Home() {
             const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
             const eventIdentifier = createEventIdentifier(event);
 
+            // Get the event's timezone for display
+            const eventTimezone = getEventTimezone(event);
+
             return (
               <Link key={event.id} to={`/event/${eventIdentifier}`}>
                 <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
@@ -449,22 +500,24 @@ export function Home() {
                     {startTime && (
                       <CardDescription className="text-sm">
                         {event.kind === 31922
-                          ? // For date-only events, format the date string
+                          ? // For date-only events, format in event's timezone if available
                             (() => {
                               try {
-                                let date;
+                                let startDate;
                                 if (startTime.match(/^\d{10}$/)) {
-                                  // Short Unix timestamp
-                                  date = new Date(parseInt(startTime) * 1000);
+                                  startDate = new Date(parseInt(startTime) * 1000);
                                 } else if (startTime.match(/^\d{13}$/)) {
-                                  // Long Unix timestamp
-                                  date = new Date(parseInt(startTime));
+                                  startDate = new Date(parseInt(startTime));
                                 } else {
-                                  // YYYY-MM-DD format
-                                  date = new Date(startTime + "T00:00:00Z");
+                                  // For YYYY-MM-DD format, create date in event's timezone
+                                  const [year, month, day] = startTime.split('-').map(Number);
+                                  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+                                    throw new Error("Invalid date format");
+                                  }
+                                  startDate = new Date(year, month - 1, day);
                                 }
 
-                                if (isNaN(date.getTime())) {
+                                if (isNaN(startDate.getTime())) {
                                   console.error("Invalid date:", startTime);
                                   return "Invalid date";
                                 }
@@ -472,88 +525,74 @@ export function Home() {
                                 const endTime = event.tags.find(
                                   (tag) => tag[0] === "end"
                                 )?.[1];
-                                if (endTime) {
+                                
+                                if (endTime && endTime !== startTime) {
                                   let endDate;
                                   if (endTime.match(/^\d{10}$/)) {
-                                    endDate = new Date(
-                                      parseInt(endTime) * 1000
-                                    );
+                                    endDate = new Date(parseInt(endTime) * 1000);
                                   } else if (endTime.match(/^\d{13}$/)) {
                                     endDate = new Date(parseInt(endTime));
                                   } else {
-                                    endDate = new Date(endTime + "T23:59:59Z");
-                                  }
-
-                                  if (isNaN(endDate.getTime())) {
-                                    console.error("Invalid end date:", endTime);
-                                    return date.toLocaleDateString(undefined, {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                      timeZone: "UTC",
-                                    });
-                                  }
-
-                                  // If start and end dates are the same, just show one date
-                                  if (
-                                    date.toDateString() ===
-                                    endDate.toDateString()
-                                  ) {
-                                    return date.toLocaleDateString(undefined, {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                      timeZone: "UTC",
-                                    });
-                                  }
-
-                                  // Show date range
-                                  return `${date.toLocaleDateString(undefined, {
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    timeZone: "UTC",
-                                  })} - ${endDate.toLocaleDateString(
-                                    undefined,
-                                    {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                      timeZone: "UTC",
+                                    const [endYear, endMonth, endDay] = endTime.split('-').map(Number);
+                                    if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay)) {
+                                      endDate = new Date(endYear, endMonth - 1, endDay);
                                     }
-                                  )}`;
+                                  }
+
+                                  if (endDate && !isNaN(endDate.getTime())) {
+                                    // If start and end dates are the same, just show one date
+                                    if (startDate.toDateString() === endDate.toDateString()) {
+                                      return formatEventDateTime(startDate.getTime(), eventTimezone) + 
+                                             getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                                    }
+
+                                    // Show date range
+                                    return `${formatEventDateTime(startDate.getTime(), eventTimezone)} - ${formatEventDateTime(endDate.getTime(), eventTimezone)}` +
+                                           getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                                  }
                                 }
 
                                 // Single date
-                                return date.toLocaleDateString(undefined, {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                  timeZone: "UTC",
-                                });
+                                return formatEventDateTime(startDate.getTime(), eventTimezone) + 
+                                       getTimezoneAbbreviation(eventTimezone, startDate.getTime());
                               } catch (error) {
                                 console.error("Error formatting date:", error);
                                 return "Invalid date";
                               }
                             })()
-                          : // For time-based events, format the Unix timestamp
+                          : // For time-based events, format in event's timezone and show end time if available
                             (() => {
                               try {
-                                const date = new Date(
-                                  parseInt(startTime) * 1000
-                                );
-                                if (isNaN(date.getTime())) {
-                                  console.error("Invalid date:", startTime);
+                                const startDate = new Date(parseInt(startTime) * 1000);
+                                if (isNaN(startDate.getTime())) {
+                                  console.error("Invalid start date:", startTime);
                                   return "Invalid date";
                                 }
-                                return date.toLocaleString(undefined, {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
+                                
+                                const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
+                                const timezoneAbbr = getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                                
+                                if (endTime) {
+                                  const endDate = new Date(parseInt(endTime) * 1000);
+                                  if (!isNaN(endDate.getTime())) {
+                                    // Show start and end times in event's timezone
+                                    const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
+                                      hour: "numeric",
+                                      minute: "numeric",
+                                    });
+                                    const endTimeOnly = formatEventTime(endDate.getTime(), eventTimezone);
+                                    
+                                    return `${startDateTime} - ${endTimeOnly}${timezoneAbbr}`;
+                                  }
+                                }
+                                
+                                // Just show start time in event's timezone
+                                const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
                                   hour: "numeric",
                                   minute: "numeric",
-                                  timeZone: "UTC",
                                 });
+                                
+                                return `${startDateTime}${timezoneAbbr}`;
                               } catch (error) {
                                 console.error("Error formatting date:", error);
                                 return "Invalid date";
