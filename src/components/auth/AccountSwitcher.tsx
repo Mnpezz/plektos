@@ -31,20 +31,117 @@ import { genUserName } from "@/lib/genUserName";
 import { useTheme } from "@/components/theme-provider";
 import { nip19 } from "nostr-tools";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 interface AccountSwitcherProps {
   onAddAccountClick: () => void;
+  variant?: "default" | "menu";
 }
 
-export function AccountSwitcher({ onAddAccountClick }: AccountSwitcherProps) {
+export function AccountSwitcher({
+  onAddAccountClick,
+  variant = "default",
+}: AccountSwitcherProps) {
   const { currentUser, otherUsers, setLogin, removeLogin } =
     useLoggedInAccounts();
   const { setTheme } = useTheme();
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="p-2">
+        <Button
+          onClick={onAddAccountClick}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground w-full font-medium transition-all hover:bg-primary/90"
+        >
+          <User className="w-4 h-4" />
+          <span className="truncate">Log in</span>
+        </Button>
+      </div>
+    );
+  }
 
   const getDisplayName = (account: Account): string =>
     account.metadata.name ?? genUserName(account.pubkey);
+
+  if (variant === "menu") {
+    return (
+      <div className="p-2 space-y-2">
+        <div className="font-medium text-sm px-2 py-1.5">Switch Account</div>
+        {otherUsers.map((user) => (
+          <button
+            key={user.id}
+            onClick={() => setLogin(user.id)}
+            className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+          >
+            <Avatar className="w-8 h-8">
+              <AvatarImage
+                src={user.metadata.picture}
+                alt={getDisplayName(user)}
+              />
+              <AvatarFallback>
+                {getDisplayName(user)?.charAt(0) || <UserIcon />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 truncate">
+              <p className="text-sm font-medium">{getDisplayName(user)}</p>
+            </div>
+            {user.id === currentUser.id && (
+              <div className="w-2 h-2 rounded-full bg-primary"></div>
+            )}
+          </button>
+        ))}
+        <div className="h-px bg-border my-2" />
+        <button
+          onClick={onAddAccountClick}
+          className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>Add another account</span>
+        </button>
+        <div className="h-px bg-border my-2" />
+        <Link
+          to={`/profile/${nip19.npubEncode(currentUser.pubkey)}`}
+          className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+        >
+          <User className="w-4 h-4" />
+          <span>Profile</span>
+        </Link>
+        <div className="h-px bg-border my-2" />
+        <div className="space-y-1">
+          <div className="font-medium text-sm px-2 py-1.5">Theme</div>
+          <button
+            onClick={() => setTheme("light")}
+            className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+          >
+            <Sun className="w-4 h-4 mr-2" />
+            <span>Light</span>
+          </button>
+          <button
+            onClick={() => setTheme("dark")}
+            className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+          >
+            <Moon className="w-4 h-4 mr-2" />
+            <span>Dark</span>
+          </button>
+          <button
+            onClick={() => setTheme("system")}
+            className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent"
+          >
+            <Monitor className="w-4 h-4 mr-2" />
+            <span>System</span>
+          </button>
+        </div>
+        <div className="h-px bg-border my-2" />
+        <button
+          onClick={() => removeLogin(currentUser.id)}
+          className="flex items-center gap-2 cursor-pointer p-2 rounded-md w-full hover:bg-accent text-red-500"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Log out</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu>

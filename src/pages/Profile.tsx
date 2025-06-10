@@ -51,9 +51,13 @@ export function Profile() {
 
   // Primary author data - show this ASAP
   const author = useAuthor(pubkey);
-  
+
   // Secondary data with timeouts - don't block the UI
-  const { data: createdEvents = [], isLoading: isLoadingCreated, error: createdEventsError } = useQuery({
+  const {
+    data: createdEvents = [],
+    isLoading: isLoadingCreated,
+    error: createdEventsError,
+  } = useQuery({
     queryKey: ["createdEvents", pubkey],
     queryFn: async ({ signal }) => {
       if (!pubkey) return [];
@@ -68,7 +72,11 @@ export function Profile() {
     staleTime: 30000, // Cache for 30 seconds
   });
 
-  const { data: rsvps = [], isLoading: isLoadingRSVPs, error: rsvpsError } = useQuery({
+  const {
+    data: rsvps = [],
+    isLoading: isLoadingRSVPs,
+    error: rsvpsError,
+  } = useQuery({
     queryKey: ["rsvps", pubkey],
     queryFn: async ({ signal }) => {
       if (!pubkey) return [];
@@ -84,7 +92,11 @@ export function Profile() {
   });
 
   // Fetch the actual events that were RSVP'd to
-  const { data: rsvpEvents = [], isLoading: isLoadingRsvpEvents, error: rsvpEventsError } = useQuery({
+  const {
+    data: rsvpEvents = [],
+    isLoading: isLoadingRsvpEvents,
+    error: rsvpEventsError,
+  } = useQuery({
     queryKey: ["rsvpEvents", rsvps],
     queryFn: async ({ signal }) => {
       if (!rsvps.length) return [];
@@ -117,7 +129,7 @@ export function Profile() {
   // Handle invalid npub
   if (!pubkey) {
     return (
-      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+      <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <Card className="rounded-none sm:rounded-lg">
           <CardContent className="p-6 text-center">
             <p className="text-destructive">Invalid profile address</p>
@@ -129,16 +141,13 @@ export function Profile() {
 
   // Show profile info immediately when available, even if other sections are loading
   return (
-    <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8 space-y-3 sm:space-y-6">
+    <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
       <Card className="rounded-none sm:rounded-lg">
         <CardHeader className="relative p-3 sm:p-6">
           {/* Action menu positioned absolutely in top right corner */}
           {user && !isOwnProfile && pubkey && (
             <div className="absolute top-3 right-3 sm:top-6 sm:right-6 z-10">
-              <UserActionsMenu 
-                pubkey={pubkey} 
-                authorName={displayName}
-              />
+              <UserActionsMenu pubkey={pubkey} authorName={displayName} />
             </div>
           )}
 
@@ -155,7 +164,8 @@ export function Profile() {
                   <DialogHeader>
                     <DialogTitle>Edit Profile</DialogTitle>
                     <DialogDescription>
-                      Update your profile information and broadcast changes to the Nostr network.
+                      Update your profile information and broadcast changes to
+                      the Nostr network.
                     </DialogDescription>
                   </DialogHeader>
                   <EditProfileForm />
@@ -213,7 +223,7 @@ export function Profile() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-6">
           {/* About section - show immediately when available */}
           {author.isLoading ? (
@@ -234,7 +244,9 @@ export function Profile() {
             <div>
               <h3 className="font-semibold mb-2">Website</h3>
               <a
-                href={website.startsWith('http') ? website : `https://${website}`}
+                href={
+                  website.startsWith("http") ? website : `https://${website}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline flex items-center gap-1"
@@ -255,7 +267,9 @@ export function Profile() {
                   <span>Loading events...</span>
                 </div>
               ) : createdEventsError ? (
-                <p className="text-muted-foreground">Unable to load created events</p>
+                <p className="text-muted-foreground">
+                  Unable to load created events
+                </p>
               ) : createdEvents.length === 0 ? (
                 <p className="text-muted-foreground">No events created yet</p>
               ) : (
@@ -304,7 +318,9 @@ export function Profile() {
                   <span>Loading RSVP event details...</span>
                 </div>
               ) : rsvpEventsError ? (
-                <p className="text-muted-foreground">Unable to load RSVP event details</p>
+                <p className="text-muted-foreground">
+                  Unable to load RSVP event details
+                </p>
               ) : (
                 rsvps.map((rsvp) => {
                   const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
@@ -354,7 +370,9 @@ export function Profile() {
                               {event.kind === 31922
                                 ? (() => {
                                     // For date-only events, format the YYYY-MM-DD date string
-                                    const date = new Date(startTime + "T00:00:00Z");
+                                    const date = new Date(
+                                      startTime + "T00:00:00Z"
+                                    );
                                     return date.toLocaleDateString(undefined, {
                                       year: "numeric",
                                       month: "long",
@@ -363,7 +381,9 @@ export function Profile() {
                                   })()
                                 : (() => {
                                     // For time-based events, format the Unix timestamp
-                                    const date = new Date(parseInt(startTime) * 1000);
+                                    const date = new Date(
+                                      parseInt(startTime) * 1000
+                                    );
                                     return date.toLocaleString(undefined, {
                                       year: "numeric",
                                       month: "long",

@@ -38,11 +38,11 @@ import { EventCategories } from "@/components/EventCategories";
 import { downloadICS } from "@/lib/icsExport";
 import { decodeEventIdentifier, createEventUrl } from "@/lib/nip19Utils";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
-import { 
-  getEventTimezone, 
-  formatEventDateTime, 
-  formatEventTime, 
-  getTimezoneAbbreviation 
+import {
+  getEventTimezone,
+  formatEventDateTime,
+  formatEventTime,
+  getTimezoneAbbreviation,
 } from "@/lib/eventTimezone";
 
 function getStatusColor(status: string) {
@@ -95,18 +95,20 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
           Created by {displayName}
         </span>
       </Link>
-      <UserActionsMenu 
-        pubkey={pubkey} 
-        authorName={displayName}
-      />
+      <UserActionsMenu pubkey={pubkey} authorName={displayName} />
     </div>
   );
 }
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { data: events, isLoading: isLoadingEvents, refetch: refetchEvents } = useEvents();
-  const { data: singleEvent, isLoading: isLoadingSingleEvent } = useSingleEvent(eventId);
+  const {
+    data: events,
+    isLoading: isLoadingEvents,
+    refetch: refetchEvents,
+  } = useEvents();
+  const { data: singleEvent, isLoading: isLoadingSingleEvent } =
+    useSingleEvent(eventId);
   const { user } = useCurrentUser();
   const { mutate: publishRSVP } = useNostrPublish();
   const { mutate: publishShare } = useNostrPublish();
@@ -132,10 +134,10 @@ export function EventDetail() {
       await queryClient.invalidateQueries({ queryKey: ["event"] });
       await queryClient.invalidateQueries({ queryKey: ["comments"] });
       await queryClient.invalidateQueries({ queryKey: ["reactions"] });
-      
+
       // Force a refetch of events
       await refetchEvents();
-      
+
       toast.success("Event details refreshed!");
     } catch (error) {
       console.error("Error refreshing event data:", error);
@@ -148,13 +150,17 @@ export function EventDetail() {
   // Early return for loading states
   if (isLoading || isRefreshing) {
     return (
-      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+      <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <Card className="rounded-none sm:rounded-lg">
           <CardContent className="p-6">
             <div className="text-center py-12">
               <div className="inline-flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                <span>{isRefreshing ? "Refreshing event details..." : "Loading event..."}</span>
+                <span>
+                  {isRefreshing
+                    ? "Refreshing event details..."
+                    : "Loading event..."}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -166,11 +172,11 @@ export function EventDetail() {
   // Decode the event identifier (supports both naddr and nevent)
   let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
   let eventIdFromIdentifier: string | undefined;
-  
+
   try {
     if (!eventId) {
       return (
-        <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+        <div className="container px-0 sm:px-4 py-2 sm:py-6">
           <Card className="rounded-none sm:rounded-lg">
             <CardContent className="p-6">
               <div className="text-center py-12">
@@ -183,41 +189,52 @@ export function EventDetail() {
     }
 
     const decodedEvent = decodeEventIdentifier(eventId);
-    
-    if (decodedEvent.type === 'naddr') {
+
+    if (decodedEvent.type === "naddr") {
       // For replaceable events, find by coordinate (kind:pubkey:d)
       const { kind, pubkey, identifier } = decodedEvent.data;
-      targetEvent = events?.find((e) => 
-        e.kind === kind && 
-        e.pubkey === pubkey && 
-        e.tags.some(tag => tag[0] === 'd' && tag[1] === identifier)
+      targetEvent = events?.find(
+        (e) =>
+          e.kind === kind &&
+          e.pubkey === pubkey &&
+          e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
       ) as DateBasedEvent | TimeBasedEvent | null;
-      
+
       // If not found in events list, try the single event result
       if (!targetEvent && singleEvent) {
         targetEvent = singleEvent;
       }
-      
+
       // Store the event ID for RSVP filtering
       eventIdFromIdentifier = targetEvent?.id;
-    } else if (decodedEvent.type === 'nevent' || decodedEvent.type === 'note' || decodedEvent.type === 'raw') {
+    } else if (
+      decodedEvent.type === "nevent" ||
+      decodedEvent.type === "note" ||
+      decodedEvent.type === "raw"
+    ) {
       // For regular events, find by event ID
-      const eventId = decodedEvent.type === 'raw' ? decodedEvent.data : 
-                     decodedEvent.type === 'note' ? decodedEvent.data :
-                     decodedEvent.data.id;
-      targetEvent = events?.find((e) => e.id === eventId) as DateBasedEvent | TimeBasedEvent | null;
-      
+      const eventId =
+        decodedEvent.type === "raw"
+          ? decodedEvent.data
+          : decodedEvent.type === "note"
+          ? decodedEvent.data
+          : decodedEvent.data.id;
+      targetEvent = events?.find((e) => e.id === eventId) as
+        | DateBasedEvent
+        | TimeBasedEvent
+        | null;
+
       // If not found in events list, try the single event result
       if (!targetEvent && singleEvent) {
         targetEvent = singleEvent;
       }
-      
+
       eventIdFromIdentifier = eventId;
     }
   } catch (error) {
     console.error("Error decoding event identifier:", error);
     return (
-      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+      <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <Card className="rounded-none sm:rounded-lg">
           <CardContent className="p-6">
             <div className="text-center py-12">
@@ -233,16 +250,17 @@ export function EventDetail() {
 
   if (!event) {
     return (
-      <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
+      <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <Card className="rounded-none sm:rounded-lg">
           <CardContent className="p-6">
             <div className="text-center py-12">
               <h2 className="text-xl font-semibold mb-2">Event not found</h2>
               <p className="text-muted-foreground mb-6">
-                The event you're looking for doesn't exist or may have been deleted.
+                The event you're looking for doesn't exist or may have been
+                deleted.
               </p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => navigate("/")}
                 className="inline-flex items-center gap-2"
               >
@@ -354,8 +372,11 @@ export function EventDetail() {
 
       if (startTime) {
         const eventTimezone = getEventTimezone(event);
-        const timezoneAbbr = getTimezoneAbbreviation(eventTimezone, new Date(parseInt(startTime) * 1000).getTime());
-        
+        const timezoneAbbr = getTimezoneAbbreviation(
+          eventTimezone,
+          new Date(parseInt(startTime) * 1000).getTime()
+        );
+
         if (event.kind === 31922) {
           // For date-only events, format in event's timezone
           let date;
@@ -364,29 +385,43 @@ export function EventDetail() {
           } else if (startTime.match(/^\d{13}$/)) {
             date = new Date(parseInt(startTime));
           } else {
-            const [year, month, day] = startTime.split('-').map(Number);
+            const [year, month, day] = startTime.split("-").map(Number);
             date = new Date(year, month - 1, day);
           }
-          
-          shareMessage += `📅 ${formatEventDateTime(date.getTime(), eventTimezone)}${timezoneAbbr}\n`;
+
+          shareMessage += `📅 ${formatEventDateTime(
+            date.getTime(),
+            eventTimezone
+          )}${timezoneAbbr}\n`;
         } else {
           // For time-based events, format in event's timezone
           const startDate = new Date(parseInt(startTime) * 1000);
           const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
-          
+
           if (endTime) {
             const endDate = new Date(parseInt(endTime) * 1000);
-            const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-              hour: "numeric",
-              minute: "numeric",
-            });
-            const endTimeOnly = formatEventTime(endDate.getTime(), eventTimezone);
+            const startDateTime = formatEventDateTime(
+              startDate.getTime(),
+              eventTimezone,
+              {
+                hour: "numeric",
+                minute: "numeric",
+              }
+            );
+            const endTimeOnly = formatEventTime(
+              endDate.getTime(),
+              eventTimezone
+            );
             shareMessage += `📅 ${startDateTime} - ${endTimeOnly}${timezoneAbbr}\n`;
           } else {
-            const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-              hour: "numeric",
-              minute: "numeric",
-            });
+            const startDateTime = formatEventDateTime(
+              startDate.getTime(),
+              eventTimezone,
+              {
+                hour: "numeric",
+                minute: "numeric",
+              }
+            );
             shareMessage += `📅 ${startDateTime}${timezoneAbbr}\n`;
           }
         }
@@ -397,9 +432,9 @@ export function EventDetail() {
       }
 
       shareMessage += `\n${event.content}\n\n`;
-      
+
       // Create the appropriate identifier (naddr for replaceable events, nevent for regular events)
-      shareMessage += `🔗 ${createEventUrl(event, 'https://plektos.app')}`;
+      shareMessage += `🔗 ${createEventUrl(event, "https://plektos.app")}`;
 
       // Add image if available
       const tags: [string, string][] = [];
@@ -499,7 +534,9 @@ export function EventDetail() {
             <h3 className="font-semibold">Date & Time</h3>
             <p className="text-muted-foreground">
               {(() => {
-                const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+                const startTime = event.tags.find(
+                  (tag) => tag[0] === "start"
+                )?.[1];
                 const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
                 const eventTimezone = getEventTimezone(event);
 
@@ -515,7 +552,9 @@ export function EventDetail() {
                       startDate = new Date(parseInt(startTime));
                     } else {
                       // YYYY-MM-DD format
-                      const [year, month, day] = startTime.split('-').map(Number);
+                      const [year, month, day] = startTime
+                        .split("-")
+                        .map(Number);
                       if (isNaN(year) || isNaN(month) || isNaN(day)) {
                         throw new Error("Invalid date format");
                       }
@@ -534,28 +573,60 @@ export function EventDetail() {
                       } else if (endTime.match(/^\d{13}$/)) {
                         endDate = new Date(parseInt(endTime));
                       } else {
-                        const [endYear, endMonth, endDay] = endTime.split('-').map(Number);
-                        if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay)) {
+                        const [endYear, endMonth, endDay] = endTime
+                          .split("-")
+                          .map(Number);
+                        if (
+                          !isNaN(endYear) &&
+                          !isNaN(endMonth) &&
+                          !isNaN(endDay)
+                        ) {
                           endDate = new Date(endYear, endMonth - 1, endDay);
                         }
                       }
 
                       if (endDate && !isNaN(endDate.getTime())) {
                         // If start and end dates are the same, just show one date
-                        if (startDate.toDateString() === endDate.toDateString()) {
-                          return formatEventDateTime(startDate.getTime(), eventTimezone) + 
-                                 getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                        if (
+                          startDate.toDateString() === endDate.toDateString()
+                        ) {
+                          return (
+                            formatEventDateTime(
+                              startDate.getTime(),
+                              eventTimezone
+                            ) +
+                            getTimezoneAbbreviation(
+                              eventTimezone,
+                              startDate.getTime()
+                            )
+                          );
                         }
 
                         // Show date range
-                        return `${formatEventDateTime(startDate.getTime(), eventTimezone)} - ${formatEventDateTime(endDate.getTime(), eventTimezone)}` +
-                               getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                        return (
+                          `${formatEventDateTime(
+                            startDate.getTime(),
+                            eventTimezone
+                          )} - ${formatEventDateTime(
+                            endDate.getTime(),
+                            eventTimezone
+                          )}` +
+                          getTimezoneAbbreviation(
+                            eventTimezone,
+                            startDate.getTime()
+                          )
+                        );
                       }
                     }
 
                     // Single date
-                    return formatEventDateTime(startDate.getTime(), eventTimezone) + 
-                           getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                    return (
+                      formatEventDateTime(startDate.getTime(), eventTimezone) +
+                      getTimezoneAbbreviation(
+                        eventTimezone,
+                        startDate.getTime()
+                      )
+                    );
                   } else {
                     // For time-based events, format in event's timezone
                     const startDate = new Date(parseInt(startTime) * 1000);
@@ -564,27 +635,41 @@ export function EventDetail() {
                       return "Invalid date";
                     }
 
-                    const timezoneAbbr = getTimezoneAbbreviation(eventTimezone, startDate.getTime());
+                    const timezoneAbbr = getTimezoneAbbreviation(
+                      eventTimezone,
+                      startDate.getTime()
+                    );
 
                     if (endTime) {
                       const endDate = new Date(parseInt(endTime) * 1000);
                       if (!isNaN(endDate.getTime())) {
                         // Show start and end times in event's timezone
-                        const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-                          hour: "numeric",
-                          minute: "numeric",
-                        });
-                        const endTimeOnly = formatEventTime(endDate.getTime(), eventTimezone);
+                        const startDateTime = formatEventDateTime(
+                          startDate.getTime(),
+                          eventTimezone,
+                          {
+                            hour: "numeric",
+                            minute: "numeric",
+                          }
+                        );
+                        const endTimeOnly = formatEventTime(
+                          endDate.getTime(),
+                          eventTimezone
+                        );
 
                         return `${startDateTime} - ${endTimeOnly}${timezoneAbbr}`;
                       }
                     }
 
                     // Just show start time in event's timezone
-                    const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-                      hour: "numeric",
-                      minute: "numeric",
-                    });
+                    const startDateTime = formatEventDateTime(
+                      startDate.getTime(),
+                      eventTimezone,
+                      {
+                        hour: "numeric",
+                        minute: "numeric",
+                      }
+                    );
 
                     return `${startDateTime}${timezoneAbbr}`;
                   }
@@ -727,7 +812,9 @@ export function EventDetail() {
               {user ? (
                 <ZapButton
                   pubkey={event.pubkey}
-                  displayName={event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"}
+                  displayName={
+                    event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"
+                  }
                   lightningAddress={lightningAddress || ""}
                   eventId={event.id}
                   eventKind={event.kind}
@@ -772,10 +859,7 @@ export function EventDetail() {
       </Card>
       {user && user.pubkey === event.pubkey && (
         <div className="mt-4 flex gap-2">
-          <EditEvent 
-            event={event} 
-            onEventUpdated={handleEventUpdated}
-          />
+          <EditEvent event={event} onEventUpdated={handleEventUpdated} />
           <DeleteEvent
             eventId={event.id}
             eventKind={event.kind}

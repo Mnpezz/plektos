@@ -3,6 +3,7 @@ import { Home } from "@/pages/Home";
 import { EventDetail } from "@/pages/EventDetail";
 import { CreateEvent } from "@/pages/CreateEvent";
 import { Profile } from "@/pages/Profile";
+import { MyTickets } from "@/pages/MyTickets";
 
 export default function AppRouter() {
   return (
@@ -11,6 +12,7 @@ export default function AppRouter() {
       <Route path="/event/:eventId" element={<EventDetail />} />
       <Route path="/create" element={<CreateEvent />} />
       <Route path="/profile/:npub" element={<Profile />} />
+      <Route path="/tickets" element={<MyTickets />} />
     </Routes>
   );
 }

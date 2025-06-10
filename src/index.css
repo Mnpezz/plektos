@@ -34,7 +34,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 0 0% 100%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
 
@@ -79,7 +79,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
+    --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -108,14 +108,14 @@
     max-height: 90vh !important;
     margin: auto !important;
   }
-  
+
   @screen sm {
     .mobile-dialog-content {
       width: auto !important;
       max-width: 42rem !important; /* sm:max-w-2xl */
     }
   }
-  
+
   @screen lg {
     .mobile-dialog-content {
       max-width: 56rem !important; /* lg:max-w-4xl */

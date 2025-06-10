@@ -204,16 +204,29 @@ export function CreateEvent() {
 
   if (!user) {
     return (
-      <div className="container max-w-2xl py-8">
-        <h1 className="text-2xl font-bold mb-4">Create Event</h1>
-        <p>Please log in to create an event.</p>
+      <div className="container px-0 sm:px-4 py-2 sm:py-6">
+        <div className="px-3 sm:px-0">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-4">
+            Create Event
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Please log in to create an event.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8">Create Event</h1>
+    <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+      <div className="px-3 sm:px-0">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
+          Create Event
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          Share your event with the community
+        </p>
+      </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <Label htmlFor="title">Event Title</Label>
