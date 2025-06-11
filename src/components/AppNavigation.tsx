@@ -4,6 +4,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { AccountSwitcher } from "@/components/auth/AccountSwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 import LoginDialog from "@/components/auth/LoginDialog";
 import {
   Sidebar,
@@ -164,11 +165,12 @@ export function AppNavigation({ children }: AppNavigationProps) {
         <div className="min-h-screen bg-background pb-16">
           {/* Mobile header */}
           <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container flex h-14 items-center">
+            <div className="container flex h-14 items-center justify-between">
               <Link to="/" className="flex items-center space-x-2">
                 <img src="/icon.svg" alt="Plektos" className="h-6 w-6" />
                 <span className="font-bold">Plektos</span>
               </Link>
+              {user && <NotificationBell />}
             </div>
           </header>
 
@@ -186,7 +188,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
                 <div className="container flex h-14 items-center justify-end">
                   {/* Search or other header content can go here */}
                   <div className="flex items-center space-x-2">
-                    {/* Additional header items */}
+                    {user && <NotificationBell />}
                   </div>
                 </div>
               </header>

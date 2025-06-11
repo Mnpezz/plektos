@@ -12,6 +12,7 @@ Plektos is a decentralized meetup platform built on Nostr. It enables users to c
 - 📅 Schedule and organize meetups
 - 📍 Location-based event discovery
 - ⚡ Use Zaps to pay for event tickets
+- 🔔 Real-time notifications for RSVPs, comments, and zaps
 
 ### Privacy & Security
 

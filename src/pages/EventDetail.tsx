@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEvents, useSingleEvent } from "@/lib/eventUtils";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -125,6 +125,119 @@ export function EventDetail() {
   // Determine overall loading state
   const isLoading = isLoadingEvents || isLoadingSingleEvent;
 
+  // Decode the event identifier and get target event
+  let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
+  let eventIdFromIdentifier: string | undefined;
+  let decodingError: string | null = null;
+
+  if (eventId) {
+    try {
+      const decodedEvent = decodeEventIdentifier(eventId);
+
+      if (decodedEvent.type === "naddr") {
+        // For replaceable events, find by coordinate (kind:pubkey:d)
+        const { kind, pubkey, identifier } = decodedEvent.data;
+        targetEvent = events?.find(
+          (e) =>
+            e.kind === kind &&
+            e.pubkey === pubkey &&
+            e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
+        ) as DateBasedEvent | TimeBasedEvent | null;
+
+        // If not found in events list, try the single event result
+        if (!targetEvent && singleEvent) {
+          targetEvent = singleEvent;
+        }
+
+        // Store the event ID for RSVP filtering
+        eventIdFromIdentifier = targetEvent?.id;
+      } else if (
+        decodedEvent.type === "nevent" ||
+        decodedEvent.type === "note" ||
+        decodedEvent.type === "raw"
+      ) {
+        // For regular events, find by event ID
+        const eventIdDecoded =
+          decodedEvent.type === "raw"
+            ? decodedEvent.data
+            : decodedEvent.type === "note"
+            ? decodedEvent.data
+            : decodedEvent.data.id;
+        targetEvent = events?.find((e) => e.id === eventIdDecoded) as
+          | DateBasedEvent
+          | TimeBasedEvent
+          | null;
+
+        // If not found in events list, try the single event result
+        if (!targetEvent && singleEvent) {
+          targetEvent = singleEvent;
+        }
+
+        eventIdFromIdentifier = eventIdDecoded;
+      }
+    } catch (error) {
+      console.error("Error decoding event identifier:", error);
+      decodingError = "Invalid event address";
+    }
+  } else {
+    decodingError = "No event identifier provided";
+  }
+
+  const event = targetEvent;
+
+  // Filter RSVP events and process attendee data
+  const rsvpEvents = (events || [])
+    .filter((e): e is EventRSVP => e.kind === 31925)
+    .filter((e) =>
+      e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier)
+    );
+
+  // Get most recent RSVP for each user
+  const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
+    const existingRSVP = acc.find((e) => e.pubkey === curr.pubkey);
+    if (!existingRSVP || curr.created_at > existingRSVP.created_at) {
+      // Remove any existing RSVP for this user
+      const filtered = acc.filter((e) => e.pubkey !== curr.pubkey);
+      return [...filtered, curr];
+    }
+    return acc;
+  }, [] as EventRSVP[]);
+
+  // Group RSVPs by status
+  const acceptedRSVPs = latestRSVPs.filter(
+    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "accepted"
+  );
+
+  const tentativeRSVPs = latestRSVPs.filter(
+    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "tentative"
+  );
+
+  const declinedRSVPs = latestRSVPs.filter(
+    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "declined"
+  );
+
+  const participants = latestRSVPs.map((e) => e.pubkey);
+
+  const price = event?.tags.find((tag) => tag[0] === "price")?.[1];
+  const lightningAddress = event?.tags.find((tag) => tag[0] === "lud16")?.[1];
+  const isPaidEvent = price && lightningAddress;
+  const isHost = user?.pubkey === event?.pubkey;
+  const imageUrl = event?.tags.find((tag) => tag[0] === "image")?.[1];
+  const eventIdentifier = event?.tags.find((tag) => tag[0] === "d")?.[1];
+
+  const userRSVP = latestRSVPs.find((e) => e.pubkey === user?.pubkey);
+  const currentStatus = userRSVP?.tags.find(
+    (tag) => tag[0] === "status"
+  )?.[1] as "accepted" | "declined" | "tentative" | undefined;
+  const currentNote = userRSVP?.content;
+
+  // When the current status changes (component re-renders), sync it with rsvpStatus
+  useEffect(() => {
+    if (currentStatus) {
+      setRsvpStatus(currentStatus);
+    }
+  }, [currentStatus]);
+
   // Enhanced event update handler with proper refresh
   const handleEventUpdated = async () => {
     setIsRefreshing(true);
@@ -169,76 +282,14 @@ export function EventDetail() {
     );
   }
 
-  // Decode the event identifier (supports both naddr and nevent)
-  let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
-  let eventIdFromIdentifier: string | undefined;
-
-  try {
-    if (!eventId) {
-      return (
-        <div className="container px-0 sm:px-4 py-2 sm:py-6">
-          <Card className="rounded-none sm:rounded-lg">
-            <CardContent className="p-6">
-              <div className="text-center py-12">
-                <p className="text-destructive">No event identifier provided</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-
-    const decodedEvent = decodeEventIdentifier(eventId);
-
-    if (decodedEvent.type === "naddr") {
-      // For replaceable events, find by coordinate (kind:pubkey:d)
-      const { kind, pubkey, identifier } = decodedEvent.data;
-      targetEvent = events?.find(
-        (e) =>
-          e.kind === kind &&
-          e.pubkey === pubkey &&
-          e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
-      ) as DateBasedEvent | TimeBasedEvent | null;
-
-      // If not found in events list, try the single event result
-      if (!targetEvent && singleEvent) {
-        targetEvent = singleEvent;
-      }
-
-      // Store the event ID for RSVP filtering
-      eventIdFromIdentifier = targetEvent?.id;
-    } else if (
-      decodedEvent.type === "nevent" ||
-      decodedEvent.type === "note" ||
-      decodedEvent.type === "raw"
-    ) {
-      // For regular events, find by event ID
-      const eventId =
-        decodedEvent.type === "raw"
-          ? decodedEvent.data
-          : decodedEvent.type === "note"
-          ? decodedEvent.data
-          : decodedEvent.data.id;
-      targetEvent = events?.find((e) => e.id === eventId) as
-        | DateBasedEvent
-        | TimeBasedEvent
-        | null;
-
-      // If not found in events list, try the single event result
-      if (!targetEvent && singleEvent) {
-        targetEvent = singleEvent;
-      }
-
-      eventIdFromIdentifier = eventId;
-    }
-  } catch (error) {
-    console.error("Error decoding event identifier:", error);
+  // Early return for decoding errors
+  if (decodingError) {
     return (
       <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <Card className="rounded-none sm:rounded-lg">
           <CardContent className="p-6">
             <div className="text-center py-12">
-              <p className="text-destructive">Invalid event address</p>
+              <p className="text-destructive">{decodingError}</p>
             </div>
           </CardContent>
         </Card>
@@ -246,8 +297,7 @@ export function EventDetail() {
     );
   }
 
-  const event = targetEvent;
-
+  // Early return for event not found
   if (!event) {
     return (
       <div className="container px-0 sm:px-4 py-2 sm:py-6">
@@ -272,46 +322,6 @@ export function EventDetail() {
       </div>
     );
   }
-
-  // Filter RSVP events first
-  const rsvpEvents = (events || [])
-    .filter((e): e is EventRSVP => e.kind === 31925)
-    .filter((e) =>
-      e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier)
-    );
-
-  // Get most recent RSVP for each user
-  const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
-    const existingRSVP = acc.find((e) => e.pubkey === curr.pubkey);
-    if (!existingRSVP || curr.created_at > existingRSVP.created_at) {
-      // Remove any existing RSVP for this user
-      const filtered = acc.filter((e) => e.pubkey !== curr.pubkey);
-      return [...filtered, curr];
-    }
-    return acc;
-  }, [] as EventRSVP[]);
-
-  // Group RSVPs by status
-  const acceptedRSVPs = latestRSVPs.filter(
-    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "accepted"
-  );
-
-  const tentativeRSVPs = latestRSVPs.filter(
-    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "tentative"
-  );
-
-  const declinedRSVPs = latestRSVPs.filter(
-    (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "declined"
-  );
-
-  const participants = latestRSVPs.map((e) => e.pubkey);
-
-  const price = event.tags.find((tag) => tag[0] === "price")?.[1];
-  const lightningAddress = event.tags.find((tag) => tag[0] === "lud16")?.[1];
-  const isPaidEvent = price && lightningAddress;
-  const isHost = user?.pubkey === event.pubkey;
-  const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
-  const eventIdentifier = event.tags.find((tag) => tag[0] === "d")?.[1];
 
   const handleRSVP = async () => {
     if (!user || !eventIdentifier) return;
@@ -348,13 +358,6 @@ export function EventDetail() {
       setIsSubmittingRSVP(false);
     }
   };
-
-  // Find user's current RSVP status
-  const userRSVP = rsvpEvents.find((e) => e.pubkey === user?.pubkey);
-  const currentStatus = userRSVP?.tags.find(
-    (tag) => tag[0] === "status"
-  )?.[1] as "accepted" | "declined" | "tentative" | undefined;
-  const currentNote = userRSVP?.content;
 
   const handleShareEvent = async () => {
     if (!user || !event) return;
@@ -757,7 +760,7 @@ export function EventDetail() {
                     {currentStatus ? "Change Status" : "Select Status"}
                   </label>
                   <Select
-                    value={currentStatus || rsvpStatus}
+                    value={rsvpStatus}
                     onValueChange={(
                       value: "accepted" | "declined" | "tentative"
                     ) => setRsvpStatus(value)}
