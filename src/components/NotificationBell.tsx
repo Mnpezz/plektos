@@ -1,21 +1,20 @@
-import { Bell, Check, CheckCheck, MessageCircle, Heart, Zap } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Bell, CheckCheck, MessageCircle, Heart, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useNotifications } from '@/contexts/NotificationContext';
-import { useAuthor } from '@/hooks/useAuthor';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { cn } from '@/lib/utils';
-import { formatDistance } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import type { Notification } from '@/lib/notificationTypes';
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useNotifications } from "@/contexts/NotificationContext";
+import { useAuthor } from "@/hooks/useAuthor";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { formatDistance } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import type { Notification } from "@/lib/notificationTypes";
 
 interface NotificationItemProps {
   notification: Notification;
@@ -23,35 +22,45 @@ interface NotificationItemProps {
   onClose: () => void;
 }
 
-function NotificationItem({ notification, onMarkAsRead, onClose }: NotificationItemProps) {
+function NotificationItem({
+  notification,
+  onMarkAsRead,
+  onClose,
+}: NotificationItemProps) {
   const navigate = useNavigate();
   const author = useAuthor(notification.fromPubkey);
-  const authorName = author.data?.metadata?.display_name || 
-                     author.data?.metadata?.name || 
-                     `${notification.fromPubkey.slice(0, 8)}...`;
+  const authorName =
+    author.data?.metadata?.display_name ||
+    author.data?.metadata?.name ||
+    `${notification.fromPubkey.slice(0, 8)}...`;
   const authorImage = author.data?.metadata?.picture;
 
   const handleClick = () => {
-    console.log('Notification clicked:', notification.id, 'read state:', notification.read);
-    
+    console.log(
+      "Notification clicked:",
+      notification.id,
+      "read state:",
+      notification.read
+    );
+
     // Always mark as read when clicked
     onMarkAsRead(notification.id);
-    
+
     // Navigate to the event page
-    console.log('Navigating to event:', notification.eventId);
+    console.log("Navigating to event:", notification.eventId);
     navigate(`/event/${notification.eventId}`);
-    
+
     // Close the dropdown
     onClose();
   };
 
   const getIcon = () => {
     switch (notification.type) {
-      case 'rsvp':
+      case "rsvp":
         return <Heart className="h-4 w-4 text-pink-500" />;
-      case 'comment':
+      case "comment":
         return <MessageCircle className="h-4 w-4 text-blue-500" />;
-      case 'zap':
+      case "zap":
         return <Zap className="h-4 w-4 text-yellow-500" />;
       default:
         return <Bell className="h-4 w-4" />;
@@ -60,22 +69,34 @@ function NotificationItem({ notification, onMarkAsRead, onClose }: NotificationI
 
   const getMessage = () => {
     switch (notification.type) {
-      case 'rsvp':
+      case "rsvp": {
         return `${notification.status} your event "${notification.eventTitle}"`;
-      case 'comment':
-        const commentText = notification.commentContent || '';
-        return `commented on "${notification.eventTitle}": "${commentText.slice(0, 50)}${commentText.length > 50 ? '...' : ''}"`;
-      case 'zap':
+      }
+      case "comment": {
+        const commentText = notification.commentContent || "";
+        return `commented on "${notification.eventTitle}": "${commentText.slice(
+          0,
+          50
+        )}${commentText.length > 50 ? "..." : ""}"`;
+      }
+      case "zap": {
         const zapAmount = notification.amount || 0;
         const zapComment = notification.comment;
         const zapMessage = `zapped ${zapAmount} sats to "${notification.eventTitle}"`;
-        return zapComment ? `${zapMessage}: "${zapComment.slice(0, 30)}${zapComment.length > 30 ? '...' : ''}"` : zapMessage;
+        return zapComment
+          ? `${zapMessage}: "${zapComment.slice(0, 30)}${
+              zapComment.length > 30 ? "..." : ""
+            }"`
+          : zapMessage;
+      }
       default:
-        return 'Unknown notification';
+        return "Unknown notification";
     }
   };
 
-  const timeAgo = formatDistance(new Date(notification.timestamp), new Date(), { addSuffix: true });
+  const timeAgo = formatDistance(new Date(notification.timestamp), new Date(), {
+    addSuffix: true,
+  });
 
   return (
     <div
@@ -110,8 +131,9 @@ function NotificationItem({ notification, onMarkAsRead, onClose }: NotificationI
   );
 }
 
-export function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications();
+export function NotificationBell({ className }: { className?: string }) {
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } =
+    useNotifications();
   const [open, setOpen] = useState(false);
 
   const handleMarkAllAsRead = () => {
@@ -130,25 +152,23 @@ export function NotificationBell() {
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="relative">
-          <Bell className="h-5 w-5" />
+          <Bell className={cn("h-5 w-5", className)} />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
             >
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           )}
           <span className="sr-only">
-            {unreadCount > 0 ? `${unreadCount} unread notifications` : 'Notifications'}
+            {unreadCount > 0
+              ? `${unreadCount} unread notifications`
+              : "Notifications"}
           </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent 
-        align="end" 
-        className="w-80 p-0"
-        forceMount
-      >
+      <DropdownMenuContent align="end" className="w-80 p-0" forceMount>
         <div className="flex items-center justify-between p-3 border-b">
           <h3 className="font-semibold">Notifications</h3>
           <div className="flex items-center gap-1">
@@ -175,7 +195,7 @@ export function NotificationBell() {
             )}
           </div>
         </div>
-        
+
         {notifications.length === 0 ? (
           <div className="p-6 text-center text-muted-foreground">
             <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />

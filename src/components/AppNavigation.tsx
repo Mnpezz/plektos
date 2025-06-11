@@ -87,7 +87,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={item.isActive} size="lg">
                   <Link to={item.href} onClick={item.onClick}>
-                    <item.icon className="h-5 w-5" />
+                    <item.icon className="!h-6 !w-6 !min-h-6 !min-w-6" />
                     <span className="text-base">{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -120,13 +120,13 @@ export function AppNavigation({ children }: AppNavigationProps) {
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 h-12 w-12 p-0 rounded-lg",
+                    "flex flex-col items-center justify-center gap-1 h-12 w-14 p-0 rounded-lg",
                     item.isActive && "text-primary bg-primary/10"
                   )}
                   asChild
                 >
                   <Link to={item.href} onClick={item.onClick}>
-                    <item.icon className="h-6 w-6" />
+                    <item.icon className="!h-6 !w-6 !min-h-6 !min-w-6" />
                   </Link>
                 </Button>
               );
@@ -138,9 +138,9 @@ export function AppNavigation({ children }: AppNavigationProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex flex-col items-center justify-center gap-1 h-12 w-12 p-0 rounded-lg"
+                  className="flex flex-col items-center justify-center gap-1 h-16 w-16 p-0 rounded-lg"
                 >
-                  <User className="h-6 w-6" />
+                  <User className="!h-6 !w-6 !min-h-6 !min-w-6" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 mb-2">
@@ -167,10 +167,10 @@ export function AppNavigation({ children }: AppNavigationProps) {
           <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="container flex h-14 items-center justify-between">
               <Link to="/" className="flex items-center space-x-2">
-                <img src="/icon.svg" alt="Plektos" className="h-6 w-6" />
-                <span className="font-bold">Plektos</span>
+                <img src="/icon.svg" alt="Plektos" className="h-8 w-8" />
+                <span className="font-bold text-lg">Plektos</span>
               </Link>
-              {user && <NotificationBell />}
+              {user && <NotificationBell className="!h-6 !w-6" />}
             </div>
           </header>
 
