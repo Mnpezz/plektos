@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { Layout } from "@/components/Layout";
 import AppRouter from "./AppRouter";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeColorMeta } from "@/components/ThemeColorMeta";
 
 const queryClient = new QueryClient();
 
@@ -13,6 +14,7 @@ export function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="plektos-theme">
       <QueryClientProvider client={queryClient}>
+        <ThemeColorMeta />
         <Layout>
           <AppRouter />
         </Layout>
