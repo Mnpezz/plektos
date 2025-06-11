@@ -105,58 +105,58 @@ export function AppNavigation({ children }: AppNavigationProps) {
   );
 
   // Mobile bottom navigation
-  const MobileBottomNav = () => (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t md:hidden">
-      <nav className="flex items-center justify-around py-2 px-4">
-        {navigationItems.map((item) => {
-          if (item.requireAuth && !user) return null;
+  const MobileBottomNav = () => {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t md:hidden">
+        <nav className="flex items-center h-16 px-2">
+          {/* Create a grid-like layout for even spacing */}
+          <div className="flex items-center justify-between w-full max-w-sm mx-auto">
+            {navigationItems.map((item) => {
+              if (item.requireAuth && !user) return null;
 
-          return (
-            <Button
-              key={item.href}
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "flex flex-col items-center gap-1 h-auto py-3 px-4",
-                item.isActive && "text-primary bg-primary/10"
-              )}
-              asChild
-            >
-              <Link to={item.href} onClick={item.onClick}>
-                <item.icon className="h-6 w-6 scale-125" />
-              </Link>
-            </Button>
-          );
-        })}
+              return (
+                <Button
+                  key={item.href}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 h-12 w-12 p-0 rounded-lg",
+                    item.isActive && "text-primary bg-primary/10"
+                  )}
+                  asChild
+                >
+                  <Link to={item.href} onClick={item.onClick}>
+                    <item.icon className="h-6 w-6" />
+                  </Link>
+                </Button>
+              );
+            })}
 
-        {/* Direct LoginArea integration - no modal */}
-        <div className="flex items-center py-2 px-3">
-          <div className="hidden md:block">
-            <LoginArea className="flex items-center [&_button]:h-8 [&_button]:w-8 [&_img]:h-6 [&_img]:w-6 [&_svg]:h-4 [&_svg]:w-4" />
+            {/* User/Account button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex flex-col items-center justify-center gap-1 h-12 w-12 p-0 rounded-lg"
+                >
+                  <User className="h-6 w-6" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 mb-2">
+                <div className="md:hidden">
+                  <AccountSwitcher
+                    onAddAccountClick={() => setLoginDialogOpen(true)}
+                    variant="menu"
+                  />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex flex-col items-center gap-1 h-auto py-3 px-4 md:hidden"
-              >
-                <User className="h-6 w-6 scale-125" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="md:hidden">
-                <AccountSwitcher
-                  onAddAccountClick={() => setLoginDialogOpen(true)}
-                  variant="menu"
-                />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </nav>
-    </div>
-  );
+        </nav>
+      </div>
+    );
+  };
 
   return (
     <>
