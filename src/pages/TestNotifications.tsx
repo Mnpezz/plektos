@@ -21,6 +21,36 @@ export function TestNotifications() {
     console.log('Added RSVP notification:', notification);
   };
 
+  const addTestRSVPDeclined = () => {
+    const notification: Notification = {
+      id: `rsvp-declined-test-${Date.now()}`,
+      type: 'rsvp',
+      timestamp: Date.now(),
+      read: false,
+      eventId: 'test-event-declined',
+      eventTitle: 'Test Event RSVP Declined',
+      fromPubkey: 'npub1testdecliner',
+      status: 'declined',
+    };
+    addNotification(notification);
+    console.log('Added RSVP declined notification:', notification);
+  };
+
+  const addTestRSVPTentative = () => {
+    const notification: Notification = {
+      id: `rsvp-tentative-test-${Date.now()}`,
+      type: 'rsvp',
+      timestamp: Date.now(),
+      read: false,
+      eventId: 'test-event-tentative',
+      eventTitle: 'Test Event RSVP Tentative',
+      fromPubkey: 'npub1testmaybe',
+      status: 'tentative',
+    };
+    addNotification(notification);
+    console.log('Added RSVP tentative notification:', notification);
+  };
+
   const addTestComment = () => {
     const notification: Notification = {
       id: `comment-test-${Date.now()}`,
@@ -99,20 +129,30 @@ export function TestNotifications() {
           <CardTitle>Notification Debug Panel</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button onClick={addTestRSVP} className="w-full">
-              Add Test RSVP
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Button onClick={addTestRSVP} className="w-full" variant="default">
+              ✅ Add RSVP: Going
             </Button>
             
+            <Button onClick={addTestRSVPDeclined} className="w-full" variant="destructive">
+              ❌ Add RSVP: Can't Go
+            </Button>
+            
+            <Button onClick={addTestRSVPTentative} className="w-full" variant="secondary">
+              💖 Add RSVP: Maybe
+            </Button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Button onClick={addTestComment} className="w-full">
-              Add Test Comment
+              💬 Add Comment
             </Button>
             
             <Button onClick={addTestZap} className="w-full">
-              Add Test Zap
+              ⚡ Add Zap
             </Button>
             
-            <Button onClick={addMultipleNotifications} variant="secondary" className="w-full">
+            <Button onClick={addMultipleNotifications} variant="outline" className="w-full">
               Add 10 for Scroll Test
             </Button>
           </div>
@@ -160,7 +200,11 @@ export function TestNotifications() {
           <div className="mt-6 p-4 bg-muted/20 rounded">
             <p className="text-sm text-muted-foreground">
               <strong>Instructions:</strong> 
-              <br />1. Add test notifications using the buttons above (use "Add 10 for Scroll Test" to test scrolling)
+              <br />1. Add test notifications using the buttons above
+              <br />   • Use "RSVP: Going" to see green checkmark ✅
+              <br />   • Use "RSVP: Can't Go" to see red X ❌  
+              <br />   • Use "RSVP: Maybe" to see pink heart 💖
+              <br />   • Use "Add 10 for Scroll Test" to test scrolling behavior
               <br />2. Check the notification bell in the header (should show count)
               <br />3. Click on notifications to test navigation and mark as read
               <br />4. Test scrolling in the notification dropdown when you have many notifications

@@ -1,4 +1,4 @@
-import { Bell, CheckCheck, MessageCircle, Heart, Zap } from "lucide-react";
+import { Bell, CheckCheck, MessageCircle, Heart, Zap, Check, X, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -57,7 +57,16 @@ function NotificationItem({
   const getIcon = () => {
     switch (notification.type) {
       case "rsvp":
-        return <Heart className="h-4 w-4 text-pink-500" />;
+        switch (notification.status) {
+          case "accepted":
+            return <Check className="h-4 w-4 text-green-500" />;
+          case "declined":
+            return <X className="h-4 w-4 text-red-500" />;
+          case "tentative":
+            return <HelpCircle className="h-4 w-4 text-amber-500" />;
+          default:
+            return <Heart className="h-4 w-4 text-pink-500" />;
+        }
       case "comment":
         return <MessageCircle className="h-4 w-4 text-blue-500" />;
       case "zap":

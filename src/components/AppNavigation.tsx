@@ -188,7 +188,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
                 <div className="container flex h-14 items-center justify-end">
                   {/* Search or other header content can go here */}
                   <div className="flex items-center space-x-2">
-                    {user && <NotificationBell />}
+                    {user && <NotificationBell className="!h-6 !w-6" />}
                   </div>
                 </div>
               </header>
