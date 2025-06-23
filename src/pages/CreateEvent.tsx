@@ -21,22 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Common timezones that users are likely to select
-const commonTimezones = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Australia/Sydney",
-  "Pacific/Auckland",
-];
+import {
+  getGroupedTimezoneOptions,
+  getUserTimezone,
+  createTimestampInTimezone,
+} from "@/lib/eventTimezone";
 
 export function CreateEvent() {
   const navigate = useNavigate();
@@ -65,7 +54,7 @@ export function CreateEvent() {
       price: 0,
       lightningAddress: "",
     },
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Default to user's timezone
+    timezone: getUserTimezone(), // Default to user's timezone
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,20 +99,29 @@ export function CreateEvent() {
 
       if (hasTime) {
         // For time-based events (kind 31923), use Unix timestamps with specific times
-        const startDateTime = new Date(formData.startDate);
         if (formData.startTime) {
-          const [hours, minutes] = formData.startTime.split(":").map(Number);
-          startDateTime.setHours(hours, minutes);
+          startTimestamp = createTimestampInTimezone(
+            formData.startDate,
+            formData.startTime,
+            formData.timezone
+          ).toString();
+        } else {
+          startTimestamp = Math.floor(
+            new Date(formData.startDate + "T00:00:00").getTime() / 1000
+          ).toString();
         }
 
-        const endDateTime = new Date(formData.endDate);
         if (formData.endTime) {
-          const [hours, minutes] = formData.endTime.split(":").map(Number);
-          endDateTime.setHours(hours, minutes);
+          endTimestamp = createTimestampInTimezone(
+            formData.endDate,
+            formData.endTime,
+            formData.timezone
+          ).toString();
+        } else {
+          endTimestamp = Math.floor(
+            new Date(formData.endDate + "T00:00:00").getTime() / 1000
+          ).toString();
         }
-
-        startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
-        endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
       } else {
         // For date-only events (kind 31922), use YYYY-MM-DD format as per NIP-52
         startTimestamp = formData.startDate; // Already in YYYY-MM-DD format
@@ -399,11 +397,18 @@ export function CreateEvent() {
               <SelectTrigger>
                 <SelectValue placeholder="Select timezone" />
               </SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                {commonTimezones.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
-                  </SelectItem>
+              <SelectContent className="max-h-[400px]">
+                {getGroupedTimezoneOptions().map((group) => (
+                  <div key={group.group}>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      {group.group}
+                    </div>
+                    {group.options.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </div>
                 ))}
               </SelectContent>
             </Select>

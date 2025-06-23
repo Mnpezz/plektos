@@ -29,22 +29,10 @@ import {
 } from "@/components/ui/select";
 import { Edit } from "lucide-react";
 import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
-
-// Common timezones that users are likely to select
-const commonTimezones = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Australia/Sydney",
-  "Pacific/Auckland",
-];
+import {
+  getGroupedTimezoneOptions,
+  createTimestampInTimezone,
+} from "@/lib/eventTimezone";
 
 interface EditEventProps {
   event: DateBasedEvent | TimeBasedEvent;
@@ -63,11 +51,11 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
     const checkIsMobile = () => {
       setIsMobile(window.innerWidth < 640);
     };
-    
+
     checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-    
-    return () => window.removeEventListener('resize', checkIsMobile);
+    window.addEventListener("resize", checkIsMobile);
+
+    return () => window.removeEventListener("resize", checkIsMobile);
   }, []);
 
   // Extract current event data
@@ -81,15 +69,16 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
     const categories = event.tags
       .filter((tag) => tag[0] === "t")
       .map((tag) => tag[1] as EventCategory);
-    
+
     // Extract ticket information
     const price = event.tags.find((tag) => tag[0] === "price")?.[1];
     const lightningAddress = event.tags.find((tag) => tag[0] === "lud16")?.[1];
     const hasTicketInfo = !!(price && lightningAddress);
 
     // Extract timezone (only for time-based events)
-    const timezone = event.tags.find((tag) => tag[0] === "start_tzid")?.[1] || 
-                    Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezone =
+      event.tags.find((tag) => tag[0] === "start_tzid")?.[1] ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     // Parse dates differently based on event kind
     let startDate = "";
@@ -185,20 +174,29 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
 
       if (eventKind === 31923) {
         // For time-based events, use Unix timestamps with specific times
-        const startDateTime = new Date(formData.startDate);
         if (formData.startTime) {
-          const [hours, minutes] = formData.startTime.split(":").map(Number);
-          startDateTime.setHours(hours, minutes);
+          startTimestamp = createTimestampInTimezone(
+            formData.startDate,
+            formData.startTime,
+            formData.timezone
+          ).toString();
+        } else {
+          startTimestamp = Math.floor(
+            new Date(formData.startDate + "T00:00:00").getTime() / 1000
+          ).toString();
         }
 
-        const endDateTime = new Date(formData.endDate);
         if (formData.endTime) {
-          const [hours, minutes] = formData.endTime.split(":").map(Number);
-          endDateTime.setHours(hours, minutes);
+          endTimestamp = createTimestampInTimezone(
+            formData.endDate,
+            formData.endTime,
+            formData.timezone
+          ).toString();
+        } else {
+          endTimestamp = Math.floor(
+            new Date(formData.endDate + "T00:00:00").getTime() / 1000
+          ).toString();
         }
-
-        startTimestamp = Math.floor(startDateTime.getTime() / 1000).toString();
-        endTimestamp = Math.floor(endDateTime.getTime() / 1000).toString();
       } else {
         // For date-only events, use YYYY-MM-DD format as per NIP-52
         startTimestamp = formData.startDate;
@@ -272,7 +270,7 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
 
       toast.success("Event updated successfully!");
       setOpen(false);
-      
+
       // Call the callback to trigger data refresh
       if (onEventUpdated) {
         onEventUpdated();
@@ -302,7 +300,7 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
           Edit Event
         </Button>
       </DialogTrigger>
-      <DialogContent 
+      <DialogContent
         className="mobile-dialog-content overflow-y-auto p-3 sm:p-6"
         onOpenAutoFocus={(e) => {
           // Prevent auto-focus on mobile to avoid virtual keyboard issues
@@ -314,9 +312,14 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
         <DialogHeader className="pb-2 sm:pb-4">
           <DialogTitle className="text-lg sm:text-xl">Edit Event</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 sm:space-y-6 max-w-full overflow-hidden"
+        >
           <div className="w-full max-w-full">
-            <Label htmlFor="title" className="text-sm">Event Title</Label>
+            <Label htmlFor="title" className="text-sm">
+              Event Title
+            </Label>
             <Input
               id="title"
               value={formData.title}
@@ -329,12 +332,17 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
           </div>
 
           <div className="w-full max-w-full">
-            <Label htmlFor="description" className="text-sm">Description</Label>
+            <Label htmlFor="description" className="text-sm">
+              Description
+            </Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, description: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
               }
               required
               className="text-sm min-h-[100px] w-full max-w-full resize-none"
@@ -410,17 +418,20 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
                   }}
                   className="rounded-md border w-full mx-auto max-w-[280px] sm:max-w-none"
                   classNames={{
-                    months: "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
+                    months:
+                      "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
                     month: "space-y-2",
                     caption: "flex justify-center p-1 relative items-center",
                     caption_label: "text-xs sm:text-sm font-medium",
                     table: "w-full border-collapse space-y-1",
                     head_row: "flex",
-                    head_cell: "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
+                    head_cell:
+                      "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
                     row: "flex w-full mt-1 sm:mt-2",
                     cell: "text-center text-xs sm:text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
                     day: "h-7 w-7 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 text-xs sm:text-sm",
-                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_selected:
+                      "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                     day_today: "bg-accent text-accent-foreground",
                     day_outside: "text-muted-foreground opacity-50",
                     day_disabled: "text-muted-foreground opacity-50",
@@ -469,17 +480,20 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
                   }}
                   className="rounded-md border w-full mx-auto max-w-[280px] sm:max-w-none"
                   classNames={{
-                    months: "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
+                    months:
+                      "flex w-full flex-col sm:flex-row space-y-0 sm:space-y-0",
                     month: "space-y-2",
                     caption: "flex justify-center p-1 relative items-center",
                     caption_label: "text-xs sm:text-sm font-medium",
                     table: "w-full border-collapse space-y-1",
                     head_row: "flex",
-                    head_cell: "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
+                    head_cell:
+                      "text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]",
                     row: "flex w-full mt-1 sm:mt-2",
                     cell: "text-center text-xs sm:text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
                     day: "h-7 w-7 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 text-xs sm:text-sm",
-                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_selected:
+                      "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                     day_today: "bg-accent text-accent-foreground",
                     day_outside: "text-muted-foreground opacity-50",
                     day_disabled: "text-muted-foreground opacity-50",
@@ -527,11 +541,22 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {commonTimezones.map((tz) => (
-                    <SelectItem key={tz} value={tz} className="text-sm">
-                      {tz}
-                    </SelectItem>
+                <SelectContent className="max-h-[400px]">
+                  {getGroupedTimezoneOptions().map((group) => (
+                    <div key={group.group}>
+                      <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                        {group.group}
+                      </div>
+                      {group.options.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          className="text-sm"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </div>
                   ))}
                 </SelectContent>
               </Select>
