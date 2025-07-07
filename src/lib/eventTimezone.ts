@@ -531,7 +531,40 @@ export function formatEventDateTime(
   timezone: string | null,
   options: Intl.DateTimeFormatOptions = {}
 ): string {
-  const date = new Date(timestamp);
+  let date: Date;
+  
+  try {
+    // If timestamp is a string, parse it safely
+    if (typeof timestamp === 'string') {
+      const parsedTimestamp = parseTimestamp(timestamp);
+      date = new Date(parsedTimestamp);
+    } else {
+      // If it's already a number, check if it needs conversion
+      if (timestamp < 10000000000) {
+        // Likely in seconds, convert to milliseconds
+        date = new Date(timestamp * 1000);
+      } else {
+        // Likely already in milliseconds
+        date = new Date(timestamp);
+      }
+    }
+    
+    // Validate the resulting date
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date created from timestamp: ${timestamp}`);
+    }
+    
+    // Sanity check: ensure the date is reasonable (between 1970 and 2100)
+    const year = date.getFullYear();
+    if (year < 1970 || year > 2100) {
+      console.warn(`Timestamp ${timestamp} resulted in unusual date: ${date.toISOString()}`);
+    }
+    
+  } catch (error) {
+    console.error(`Error parsing timestamp ${timestamp}:`, error);
+    // Fallback to current time to prevent crashes
+    date = new Date();
+  }
 
   const formatOptions: Intl.DateTimeFormatOptions = {
     year: "numeric",
@@ -546,15 +579,81 @@ export function formatEventDateTime(
         ...formatOptions,
         timeZone: timezone,
       });
-    } catch {
+    } catch (error) {
       console.warn(
-        `Invalid timezone: ${timezone}, falling back to browser timezone`
+        `Invalid timezone: ${timezone}, falling back to browser timezone. Error:`,
+        error
       );
     }
   }
 
   // Fallback to browser timezone
   return date.toLocaleDateString(undefined, formatOptions);
+}
+
+/**
+ * Safely parses a timestamp string to milliseconds
+ * Handles both seconds and milliseconds timestamps, and validates the result
+ */
+function parseTimestamp(timestampStr: string): number {
+  const timestamp = parseInt(timestampStr);
+  
+  if (isNaN(timestamp)) {
+    throw new Error(`Invalid timestamp: ${timestampStr}`);
+  }
+  
+  // If the timestamp is less than 10 digits, it's likely in seconds
+  // If it's 10 digits or more, it could be seconds or milliseconds
+  // We need to determine which based on the magnitude
+  
+  // Timestamps in seconds for dates after 2001 will be > 1000000000 (10 digits)
+  // Timestamps in milliseconds for dates after 2001 will be > 1000000000000 (13 digits)
+  
+  if (timestamp < 1000000000) {
+    // Less than 10 digits - definitely seconds, but very old date (before 2001)
+    // This is likely an error, but we'll treat it as seconds
+    console.warn(`Timestamp ${timestamp} seems too small, treating as seconds`);
+    return timestamp * 1000;
+  } else if (timestamp < 10000000000) {
+    // 10 digits - definitely seconds (dates between 2001-2286)
+    return timestamp * 1000;
+  } else if (timestamp < 100000000000) {
+    // 11 digits - could be seconds for far future dates, but more likely an error
+    // Let's check if treating it as seconds gives a reasonable date
+    const asSeconds = new Date(timestamp * 1000);
+    
+    // If treating as seconds gives a date far in the future (after 2100), 
+    // it's probably meant to be milliseconds
+    if (asSeconds.getFullYear() > 2100) {
+      console.warn(`Timestamp ${timestamp} treated as milliseconds due to far future date when interpreted as seconds`);
+      return timestamp;
+    } else {
+      return timestamp * 1000;
+    }
+  } else if (timestamp < 10000000000000) {
+    // 12 digits - likely milliseconds, but could be seconds for very far future
+    const asSeconds = new Date(timestamp * 1000);
+    const asMilliseconds = new Date(timestamp);
+    
+    // If treating as seconds gives an unreasonable date (after year 3000), treat as milliseconds
+    if (asSeconds.getFullYear() > 3000) {
+      return timestamp;
+    } else {
+      // Check which interpretation gives a more reasonable date (closer to now)
+      const now = Date.now();
+      const diffAsSeconds = Math.abs(asSeconds.getTime() - now);
+      const diffAsMilliseconds = Math.abs(asMilliseconds.getTime() - now);
+      
+      if (diffAsMilliseconds < diffAsSeconds) {
+        return timestamp;
+      } else {
+        return timestamp * 1000;
+      }
+    }
+  } else {
+    // 13+ digits - definitely milliseconds
+    return timestamp;
+  }
 }
 
 /**
@@ -565,7 +664,40 @@ export function formatEventTime(
   timezone: string | null,
   options: Intl.DateTimeFormatOptions = {}
 ): string {
-  const date = new Date(timestamp);
+  let date: Date;
+  
+  try {
+    // If timestamp is a string, parse it safely
+    if (typeof timestamp === 'string') {
+      const parsedTimestamp = parseTimestamp(timestamp);
+      date = new Date(parsedTimestamp);
+    } else {
+      // If it's already a number, check if it needs conversion
+      if (timestamp < 10000000000) {
+        // Likely in seconds, convert to milliseconds
+        date = new Date(timestamp * 1000);
+      } else {
+        // Likely already in milliseconds
+        date = new Date(timestamp);
+      }
+    }
+    
+    // Validate the resulting date
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date created from timestamp: ${timestamp}`);
+    }
+    
+    // Sanity check: ensure the date is reasonable (between 1970 and 2100)
+    const year = date.getFullYear();
+    if (year < 1970 || year > 2100) {
+      console.warn(`Timestamp ${timestamp} resulted in unusual date: ${date.toISOString()}`);
+    }
+    
+  } catch (error) {
+    console.error(`Error parsing timestamp ${timestamp}:`, error);
+    // Fallback to current time to prevent crashes
+    date = new Date();
+  }
 
   const formatOptions: Intl.DateTimeFormatOptions = {
     hour: "numeric",
@@ -579,9 +711,10 @@ export function formatEventTime(
         ...formatOptions,
         timeZone: timezone,
       });
-    } catch {
+    } catch (error) {
       console.warn(
-        `Invalid timezone: ${timezone}, falling back to browser timezone`
+        `Invalid timezone: ${timezone}, falling back to browser timezone. Error:`,
+        error
       );
     }
   }

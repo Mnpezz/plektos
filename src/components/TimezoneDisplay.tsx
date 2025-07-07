@@ -120,8 +120,16 @@ export function TimezoneDisplay({
               : null,
         };
       } else {
-        // Time-based events
-        const startDate = new Date(parseInt(startTime) * 1000);
+        // Time-based events - use robust timestamp parsing
+        let timestamp = parseInt(startTime);
+        
+        // Handle both seconds and milliseconds timestamps
+        if (timestamp < 10000000000) {
+          // Likely in seconds, convert to milliseconds
+          timestamp = timestamp * 1000;
+        }
+        
+        const startDate = new Date(timestamp);
         if (isNaN(startDate.getTime())) {
           throw new Error("Invalid start date");
         }
@@ -132,7 +140,15 @@ export function TimezoneDisplay({
         );
 
         if (endTime) {
-          const endDate = new Date(parseInt(endTime) * 1000);
+          let endTimestamp = parseInt(endTime);
+          
+          // Handle both seconds and milliseconds timestamps
+          if (endTimestamp < 10000000000) {
+            // Likely in seconds, convert to milliseconds
+            endTimestamp = endTimestamp * 1000;
+          }
+          
+          const endDate = new Date(endTimestamp);
           if (!isNaN(endDate.getTime())) {
             const startDateTime = formatEventDateTime(
               startDate.getTime(),

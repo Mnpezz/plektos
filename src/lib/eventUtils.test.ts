@@ -242,4 +242,127 @@ describe('useEvents - Replaceable Event Deduplication', () => {
     expect(deduplicated[0].content).toBe('Version 3');
     expect(deduplicated[0].created_at).toBe(3000);
   });
+
+  it('filters out private booking events', () => {
+    const mockEvents: MockEvent[] = [
+      // Regular public event
+      {
+        id: 'public1',
+        kind: 31922,
+        pubkey: 'author123',
+        created_at: 1000,
+        content: 'Public event',
+        tags: [
+          ['d', 'public-event-2024'],
+          ['title', 'Public Event'],
+        ],
+      },
+      // Private booking event (should be filtered out)
+      {
+        id: 'booking1',
+        kind: 31922,
+        pubkey: 'author123',
+        created_at: 1000,
+        content: 'Private booking',
+        tags: [
+          ['d', 'booking-abc123'],
+          ['title', 'Private Booking'],
+        ],
+      },
+      // Another private booking event with different format
+      {
+        id: 'booking2',
+        kind: 31923,
+        pubkey: 'author456',
+        created_at: 2000,
+        content: 'Another private booking',
+        tags: [
+          ['d', 'user-booking-xyz789'],
+          ['title', 'Another Private Booking'],
+        ],
+      },
+      // RSVP event (should not be filtered)
+      {
+        id: 'rsvp1',
+        kind: 31925,
+        pubkey: 'rsvp-author',
+        created_at: 3000,
+        content: 'Going!',
+        tags: [
+          ['a', '31922:author123:public-event-2024'],
+          ['status', 'accepted'],
+        ],
+      },
+    ];
+
+    const deduplicateEvents = (events: MockEvent[]): MockEvent[] => {
+      return events.reduce((acc: MockEvent[], event: MockEvent) => {
+        // For RSVP events (31925), keep all of them
+        if (event.kind === 31925) {
+          acc.push(event);
+          return acc;
+        }
+
+        // For replaceable calendar events (31922, 31923)
+        if (event.kind === 31922 || event.kind === 31923) {
+          const dTag = event.tags.find((tag: string[]) => tag[0] === 'd')?.[1];
+          if (!dTag) {
+            return acc;
+          }
+
+          // Filter out private booking events
+          if (dTag.includes('booking-')) {
+            return acc;
+          }
+
+          const existingEvent = acc.find((e: MockEvent) => {
+            if (e.kind !== event.kind || e.pubkey !== event.pubkey) return false;
+            const existingDTag = e.tags.find((tag: string[]) => tag[0] === 'd')?.[1];
+            return existingDTag === dTag;
+          });
+
+          if (!existingEvent) {
+            acc.push(event);
+          } else if (event.created_at > existingEvent.created_at) {
+            const index = acc.indexOf(existingEvent);
+            acc[index] = event;
+          }
+          return acc;
+        }
+
+        acc.push(event);
+        return acc;
+      }, []);
+    };
+
+    const deduplicated = deduplicateEvents(mockEvents);
+
+    // Should have 2 events total: 1 public event + 1 RSVP event
+    // The 2 booking events should be filtered out
+    expect(deduplicated).toHaveLength(2);
+
+    // Should have the public event
+    const publicEvent = deduplicated.find((e: MockEvent) => e.id === 'public1');
+    expect(publicEvent).toBeDefined();
+
+    // Should have the RSVP event
+    const rsvpEvent = deduplicated.find((e: MockEvent) => e.id === 'rsvp1');
+    expect(rsvpEvent).toBeDefined();
+
+    // Should NOT have any booking events
+    const bookingEvents = deduplicated.filter((e: MockEvent) => 
+      e.id === 'booking1' || e.id === 'booking2'
+    );
+    expect(bookingEvents).toHaveLength(0);
+
+    // Verify the d tags of remaining events don't contain 'booking-'
+    deduplicated.forEach((event: MockEvent) => {
+      if (event.kind === 31922 || event.kind === 31923) {
+        const dTag = event.tags.find((tag: string[]) => tag[0] === 'd')?.[1];
+        if (dTag) {
+          expect(dTag).not.toContain('booking-');
+        }
+      }
+    });
+  });
 });

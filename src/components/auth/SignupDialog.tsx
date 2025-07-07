@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog.tsx';
-import { toast } from '@/hooks/useToast.ts';
+import { toast } from 'sonner';
 import { useLoginActions } from '@/hooks/useLoginActions';
 import { generateSecretKey, nip19 } from 'nostr-tools';
 
@@ -39,11 +39,7 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose }) => {
       setStep('download');
     } catch (error) {
       console.error('Failed to generate key:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate key. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to generate key. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -65,10 +61,7 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose }) => {
     globalThis.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 
-    toast({
-      title: 'Key downloaded',
-      description: 'Your key has been downloaded. Keep it safe!',
-    });
+    toast.success('Your key has been downloaded. Keep it safe!');
   };
 
   const finishSignup = () => {
@@ -77,10 +70,7 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose }) => {
     setStep('done');
     onClose();
 
-    toast({
-      title: 'Account created',
-      description: 'You are now logged in.',
-    });
+    toast.success('Account created! You are now logged in.');
   };
 
   return (

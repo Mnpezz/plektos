@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTimestampInTimezone, formatEventDateTime, getTimezoneAbbreviation } from './eventTimezone';
+import { createTimestampInTimezone, formatEventDateTime, formatEventTime, getTimezoneAbbreviation } from './eventTimezone';
 
 describe('Timezone Handling', () => {
   it('should create correct timestamp for EDT timezone', () => {
@@ -149,5 +149,101 @@ describe('Timezone Handling', () => {
     
     // The correct timestamp should show 15:00 (3:00 PM)
     expect(correctFormattedTime).toContain('15:00');
+  });
+
+  it('should handle various timestamp formats correctly', () => {
+    const timezone = 'America/New_York';
+    
+    // Test different timestamp formats that might appear in events
+    const testCases = [
+      {
+        name: 'seconds timestamp',
+        timestamp: 1751986800, // 10 digits - seconds
+        expectedHour: 11, // This should be 11:00 AM EDT (the original timestamp)
+      },
+      {
+        name: 'milliseconds timestamp', 
+        timestamp: 1751986800000, // 13 digits - milliseconds
+        expectedHour: 11, // Same time but in milliseconds
+      },
+      {
+        name: 'corrected timestamp for 3 PM',
+        timestamp: 1752001200, // This should be 3:00 PM EDT
+        expectedHour: 15,
+      }
+    ];
+    
+    testCases.forEach(({ name, timestamp, expectedHour }) => {
+      console.log(`\nTesting ${name}: ${timestamp}`);
+      
+      // Test formatEventTime with the timestamp
+      const formattedTime = formatEventTime(timestamp, timezone, {
+        hour12: false
+      });
+      
+      console.log(`Formatted time: ${formattedTime}`);
+      
+      // Extract hour from formatted time (format: "HH:MM")
+      const hourMatch = formattedTime.match(/(\d{1,2}):/);
+      const actualHour = hourMatch ? parseInt(hourMatch[1]) : null;
+      
+      expect(actualHour).toBe(expectedHour);
+    });
+  });
+
+  it('should handle edge cases in timestamp parsing', () => {
+    const timezone = 'America/New_York';
+    
+    // Test edge cases
+    const edgeCases = [
+      {
+        name: 'very small timestamp (likely seconds)',
+        timestamp: 946684800, // Year 2000 in seconds
+        shouldWork: true
+      },
+      {
+        name: 'invalid timestamp',
+        timestamp: NaN,
+        shouldWork: false
+      },
+      {
+        name: 'negative timestamp',
+        timestamp: -1,
+        shouldWork: false // Should fallback gracefully
+      },
+      {
+        name: 'string timestamp (seconds)',
+        timestamp: '1751986800',
+        shouldWork: true
+      },
+      {
+        name: 'string timestamp (milliseconds)',
+        timestamp: '1751986800000',
+        shouldWork: true
+      }
+    ];
+    
+    edgeCases.forEach(({ name, timestamp, shouldWork }) => {
+      console.log(`\nTesting edge case: ${name}`);
+      
+      try {
+        const formattedTime = formatEventTime(timestamp as number, timezone);
+        console.log(`Result: ${formattedTime}`);
+        
+        if (shouldWork) {
+          // Should produce a valid time format
+          expect(formattedTime).toMatch(/\d{1,2}:\d{2}/);
+        } else {
+          // Should not crash, but might produce current time as fallback
+          expect(typeof formattedTime).toBe('string');
+        }
+      } catch (error) {
+        if (shouldWork) {
+          throw error; // Re-throw if this should have worked
+        }
+        // Otherwise, it's expected to fail
+        console.log(`Expected failure: ${error}`);
+      }
+    });
   });
 });

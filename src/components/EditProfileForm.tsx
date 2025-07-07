@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEnhancedNostrPublish } from '@/hooks/useEnhancedNostrPublish';
-import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -27,7 +27,7 @@ export const EditProfileForm: React.FC = () => {
   const { user, metadata } = useCurrentUser();
   const { mutateAsync: publishEvent, isPending } = useEnhancedNostrPublish();
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
-  const { toast } = useToast();
+
 
   // Initialize the form with default values
   const form = useForm<NostrMetadata>({
@@ -64,27 +64,16 @@ export const EditProfileForm: React.FC = () => {
       // The first tuple in the array contains the URL
       const [[_, url]] = await uploadFile(file);
       form.setValue(field, url);
-      toast({
-        title: 'Success',
-        description: `${field === 'picture' ? 'Profile picture' : 'Banner'} uploaded successfully`,
-      });
+      toast.success(`${field === 'picture' ? 'Profile picture' : 'Banner'} uploaded successfully`);
     } catch (error) {
       console.error(`Failed to upload ${field}:`, error);
-      toast({
-        title: 'Error',
-        description: `Failed to upload ${field === 'picture' ? 'profile picture' : 'banner'}. Please try again.`,
-        variant: 'destructive',
-      });
+      toast.error(`Failed to upload ${field === 'picture' ? 'profile picture' : 'banner'}. Please try again.`);
     }
   };
 
   const onSubmit = async (values: NostrMetadata) => {
     if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to update your profile',
-        variant: 'destructive',
-      });
+      toast.error('You must be logged in to update your profile');
       return;
     }
 
@@ -110,17 +99,10 @@ export const EditProfileForm: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['author', user.pubkey] });
       queryClient.invalidateQueries({ queryKey: ['userRelays', user.pubkey] });
 
-      toast({
-        title: 'Success',
-        description: 'Your profile has been updated and broadcasted to your home relays',
-      });
+      toast.success('Your profile has been updated and broadcasted to your home relays');
     } catch (error) {
       console.error('Failed to update profile:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update your profile. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to update your profile. Please try again.');
     }
   };
 

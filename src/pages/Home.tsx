@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createEventIdentifier } from "@/lib/nip19Utils";
 import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
 import { Input } from "@/components/ui/input";
@@ -27,18 +27,32 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CalendarIcon, Search, X, Filter, ChevronDown } from "lucide-react";
+import { CalendarIcon, Search, X, Filter, ChevronDown, Grid3X3, Calendar as CalendarViewIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
+import { MonthlyCalendarView } from "@/components/MonthlyCalendarView";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 export function Home() {
   console.log("Home component rendering");
-  const { data: events, isLoading, error } = useEvents();
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
+  
+  // Use regular loading for both views - simpler and more reliable
+  const { data: allEventsData, isLoading, error } = useEvents({
+    limit: 500, // Load a good amount of events
+    includeRSVPs: true
+  });
+
   const { isMuted, isLoading: isMuteListLoading } = useMuteList();
+
+  // State for client-side pagination in grid view
+  const [displayedEventCount, setDisplayedEventCount] = useState(50);
+  
+  const allEvents = useMemo(() => allEventsData || [], [allEventsData]);
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [locationFilter, setLocationFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -48,7 +62,7 @@ export function Home() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter events based on all criteria including mute list
-  const calendarEvents = events
+  const allFilteredEvents = allEvents
     ?.filter((event): event is DateBasedEvent | TimeBasedEvent => {
       if (event.kind !== 31922 && event.kind !== 31923) return false;
 
@@ -263,6 +277,11 @@ export function Home() {
       return getEventStartTime(a) - getEventStartTime(b);
     });
 
+  // For grid view, limit the displayed events for pagination
+  const filteredEvents = viewMode === "calendar" 
+    ? allFilteredEvents 
+    : allFilteredEvents?.slice(0, displayedEventCount);
+
   const clearFilters = () => {
     setShowPastEvents(false);
     setLocationFilter("");
@@ -276,10 +295,72 @@ export function Home() {
     showPastEvents ||
     selectedCategories.length > 0;
 
+  // Load more functionality for grid view
+  const canLoadMore = viewMode === "grid" && allFilteredEvents && displayedEventCount < allFilteredEvents.length;
+  
+  const loadMoreEvents = () => {
+    setDisplayedEventCount(prev => prev + 50);
+  };
+
+  // Infinite scroll observer for grid view
+  const observer = useRef<IntersectionObserver>();
+  const lastEventElementRef = useCallback((node: HTMLElement | null) => {
+    if (isLoading) return;
+    if (observer.current) observer.current.disconnect();
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && canLoadMore) {
+        console.log("Loading more events via intersection observer...");
+        loadMoreEvents();
+      }
+    }, {
+      threshold: 0.1,
+      rootMargin: '100px'
+    });
+    
+    if (node) observer.current.observe(node);
+  }, [isLoading, canLoadMore]);
+
   useEffect(() => {
     console.log("Home component mounted");
-    console.log("Events state:", { events, isLoading, error });
-  }, [events, isLoading, error]);
+    console.log("Events state:", { 
+      allEvents: allEvents.length, 
+      allFilteredEvents: allFilteredEvents?.length || 0,
+      displayedEvents: filteredEvents?.length || 0,
+      displayedEventCount,
+      canLoadMore,
+      isLoading, 
+      error,
+      viewMode
+    });
+
+    // Debug: Check for duplicate events
+    if (allEvents.length > 0) {
+      const eventCoordinates = new Map<string, number>();
+      const duplicates: string[] = [];
+      
+      allEvents.forEach(event => {
+        if (event.kind === 31922 || event.kind === 31923) {
+          const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
+          if (dTag) {
+            const coordinate = `${event.kind}:${event.pubkey}:${dTag}`;
+            const count = eventCoordinates.get(coordinate) || 0;
+            eventCoordinates.set(coordinate, count + 1);
+            if (count > 0) {
+              duplicates.push(coordinate);
+            }
+          }
+        }
+      });
+      
+      if (duplicates.length > 0) {
+        console.warn("🚨 DUPLICATE EVENTS DETECTED:", duplicates);
+        console.warn("Event coordinates with counts:", Array.from(eventCoordinates.entries()).filter(([_, count]) => count > 1));
+      } else {
+        console.log("✅ No duplicate events detected");
+      }
+    }
+  }, [allEvents, allFilteredEvents, filteredEvents, displayedEventCount, canLoadMore, isLoading, error, viewMode]);
 
   if (isLoading || isMuteListLoading) {
     console.log("Loading events...");
@@ -288,20 +369,53 @@ export function Home() {
 
   if (error) {
     console.error("Error loading events:", error);
-    return <div>Error loading events: {error.message}</div>;
+    const errorMessage = error && typeof error === 'object' && 'message' in error 
+      ? (error as Error).message 
+      : String(error);
+    return <div>Error loading events: {errorMessage}</div>;
   }
 
-  console.log("Rendering events:", calendarEvents);
+  console.log("Rendering events:", {
+    allEventsLength: allEvents.length,
+    allFilteredEventsLength: allFilteredEvents?.length || 0,
+    displayedEventsLength: filteredEvents?.length || 0,
+    displayedEventCount,
+    canLoadMore,
+    viewMode
+  });
 
   return (
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
       <div className="px-3 sm:px-0">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          Discover Events
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Where people and purpose intertwine
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Discover Events
+            </h1>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Where people and purpose intertwine
+            </p>
+          </div>
+          
+          {/* View Mode Toggle */}
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(value) => {
+              if (value) setViewMode(value as "grid" | "calendar");
+            }}
+            className="justify-start sm:justify-end"
+          >
+            <ToggleGroupItem value="grid" aria-label="Grid view" className="gap-2">
+              <Grid3X3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Grid</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="calendar" aria-label="Calendar view" className="gap-2">
+              <CalendarViewIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Calendar</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
       {/* Filters */}
@@ -456,62 +570,108 @@ export function Home() {
         </Collapsible>
       </Card>
 
-      {calendarEvents?.length === 0 ? (
+      {filteredEvents?.length === 0 ? (
         <div className="text-center py-8 sm:py-12">
           <p className="text-muted-foreground">No events found</p>
         </div>
+      ) : viewMode === "calendar" ? (
+        <MonthlyCalendarView events={filteredEvents || []} />
       ) : (
-        <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {calendarEvents?.map((event) => {
-            const title =
-              event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
-            const description = event.content;
-            const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
-            const location = event.tags.find(
-              (tag) => tag[0] === "location"
-            )?.[1];
-            const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
-            const eventIdentifier = createEventIdentifier(event);
+        <>
+          <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredEvents?.map((event, index) => {
+              const title =
+                event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
+              const description = event.content;
+              const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+              const location = event.tags.find(
+                (tag) => tag[0] === "location"
+              )?.[1];
+              const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
+              const eventIdentifier = createEventIdentifier(event);
 
+              // Add ref to last element for infinite scroll
+              const isLastElement = index === filteredEvents.length - 1;
 
-
-            return (
-              <Link key={event.id} to={`/event/${eventIdentifier}`}>
-                <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
-                  {imageUrl && (
-                    <div className="aspect-video w-full overflow-hidden">
-                      <img
-                        src={imageUrl}
-                        alt={title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                  <CardHeader className="p-3 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl line-clamp-2">
-                      {title}
-                    </CardTitle>
-                    {startTime && (
-                      <CardDescription className="text-sm">
-                        <TimezoneDisplay event={event} showLocalTime={false} />
-                      </CardDescription>
+              return (
+                <div 
+                  key={event.id}
+                  ref={isLastElement ? lastEventElementRef : undefined}
+                >
+                  <Link to={`/event/${eventIdentifier}`}>
+                    <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
+                    {imageUrl && (
+                      <div className="aspect-video w-full overflow-hidden">
+                        <img
+                          src={imageUrl}
+                          alt={title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                     )}
-                  </CardHeader>
-                  <CardContent className="p-3 sm:p-6 pt-0">
-                    <p className="line-clamp-2 text-sm text-muted-foreground">
-                      {description}
-                    </p>
-                    {location && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        📍 {location}
+                    <CardHeader className="p-3 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl line-clamp-2">
+                        {title}
+                      </CardTitle>
+                      {startTime && (
+                        <CardDescription className="text-sm">
+                          <TimezoneDisplay event={event} showLocalTime={false} />
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="p-3 sm:p-6 pt-0">
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {description}
                       </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                      {location && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          📍 {location}
+                        </p>
+                      )}
+                    </CardContent>
+                    </Card>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Load more button */}
+          {canLoadMore && (
+            <div className="flex justify-center py-8">
+              <Button
+                onClick={loadMoreEvents}
+                variant="outline"
+                className="px-8"
+              >
+                Load More Events ({allFilteredEvents!.length - displayedEventCount} remaining)
+              </Button>
+            </div>
+          )}
+
+          {/* Debug info - show in grid view */}
+          {viewMode === "grid" && (
+            <div className="flex justify-center py-4">
+              <div className="text-xs text-muted-foreground space-y-2 text-center">
+                <div>Debug Info:</div>
+                <div>Total events loaded: {allEvents.length}</div>
+                <div>After filtering: {allFilteredEvents?.length || 0}</div>
+                <div>Currently displayed: {filteredEvents?.length || 0}</div>
+                <div>Can load more: {String(canLoadMore)}</div>
+                {canLoadMore && (
+                  <Button
+                    onClick={loadMoreEvents}
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                  >
+                    🔧 Debug: Load More
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

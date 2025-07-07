@@ -57,6 +57,8 @@ export function CreateEvent() {
     timezone: getUserTimezone(), // Default to user's timezone
   });
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -93,6 +95,16 @@ export function CreateEvent() {
       const hasTime = formData.startTime || formData.endTime;
       const eventKind = hasTime ? 31923 : 31922;
 
+      console.log("Creating event with:", {
+        hasTime,
+        eventKind,
+        startDate: formData.startDate,
+        startTime: formData.startTime,
+        endDate: formData.endDate,
+        endTime: formData.endTime,
+        timezone: formData.timezone
+      });
+
       // Format start and end timestamps based on event kind
       let startTimestamp: string;
       let endTimestamp: string | undefined;
@@ -128,8 +140,11 @@ export function CreateEvent() {
         endTimestamp = formData.endDate; // Already in YYYY-MM-DD format
       }
 
+      // Create a unique identifier for the event
+      const uniqueId = formData.title.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now();
+      
       const tags = [
-        ["d", formData.title.toLowerCase().replace(/\s+/g, "-")], // Unique identifier
+        ["d", uniqueId], // Unique identifier
         ["title", formData.title],
         ["description", formData.description],
         ["location", formData.location],
@@ -146,7 +161,7 @@ export function CreateEvent() {
         );
       }
 
-      // Add start and end timestamps (both kinds use Unix timestamps)
+      // Add start and end timestamps
       tags.push(["start", startTimestamp]);
       if (endTimestamp) {
         tags.push(["end", endTimestamp]);
@@ -184,18 +199,28 @@ export function CreateEvent() {
         );
       }
 
-      await createEvent({
+      createEvent({
         kind: eventKind,
         content: formData.description,
         tags,
+      }, {
+        onSuccess: (event) => {
+          toast.success("Event created successfully! It should appear on the home page shortly.");
+          console.log("Event created with ID:", event.id);
+          
+          // Navigate back to home page where the user can see their new event
+          navigate("/");
+          setIsSubmitting(false);
+        },
+        onError: (error) => {
+          toast.error("Failed to create event");
+          console.error("Error creating event:", error);
+          setIsSubmitting(false);
+        }
       });
-
-      toast.success("Event created successfully!");
-      navigate("/");
     } catch (error) {
       toast.error("Failed to create event");
       console.error("Error creating event:", error);
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -222,7 +247,7 @@ export function CreateEvent() {
           Create Event
         </h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Share your event with the community
+          Create a new event for your community
         </p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">

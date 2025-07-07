@@ -291,19 +291,26 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
         );
       }
 
-      await updateEvent({
+      updateEvent({
         kind: eventKind,
         content: formData.description,
         tags,
+      }, {
+        onSuccess: (updatedEvent) => {
+          toast.success("Event updated successfully! Changes should appear immediately.");
+          console.log("Event updated with ID:", updatedEvent.id);
+          setOpen(false);
+
+          // Call the callback to trigger data refresh
+          if (onEventUpdated) {
+            onEventUpdated();
+          }
+        },
+        onError: (error) => {
+          toast.error("Failed to update event");
+          console.error("Error updating event:", error);
+        }
       });
-
-      toast.success("Event updated successfully!");
-      setOpen(false);
-
-      // Call the callback to trigger data refresh
-      if (onEventUpdated) {
-        onEventUpdated();
-      }
     } catch (error) {
       toast.error("Failed to update event");
       console.error("Error updating event:", error);

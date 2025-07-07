@@ -19,8 +19,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// import '@fontsource-variable/inter';
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

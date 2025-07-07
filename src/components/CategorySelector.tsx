@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,13 @@ export function CategorySelector({
   maxSelections = 5,
 }: CategorySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Reset collapsible state when selectedCategories change significantly
+  useEffect(() => {
+    if (isOpen && selectedCategories.length >= maxSelections) {
+      setIsOpen(false);
+    }
+  }, [selectedCategories.length, maxSelections, isOpen]);
 
   const toggleCategory = (category: EventCategory) => {
     if (selectedCategories.includes(category)) {
@@ -81,7 +88,11 @@ export function CategorySelector({
                   }
                   size="sm"
                   className="justify-start h-auto py-2 px-3"
-                  onClick={() => toggleCategory(category)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleCategory(category);
+                  }}
                   disabled={
                     !selectedCategories.includes(category) &&
                     selectedCategories.length >= maxSelections

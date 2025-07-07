@@ -1,14 +1,16 @@
 import * as React from "react"
 import { cva } from "class-variance-authority"
 
+// Constants
 export const SIDEBAR_COOKIE_NAME = "sidebar:state"
-export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 1 week
 export const SIDEBAR_WIDTH = "16rem"
 export const SIDEBAR_WIDTH_MOBILE = "18rem"
 export const SIDEBAR_WIDTH_ICON = "3rem"
 export const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
-export type SidebarContext = {
+// Context
+export interface SidebarContext {
   state: "expanded" | "collapsed"
   open: boolean
   setOpen: (open: boolean) => void
@@ -25,12 +27,12 @@ export function useSidebar() {
   if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider.")
   }
-
   return context
 }
 
+// Variants
 export const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
   {
     variants: {
       variant: {
