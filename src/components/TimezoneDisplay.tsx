@@ -200,11 +200,24 @@ export function TimezoneDisplay({
 
   const { eventTime, localTime } = getFormattedTime();
 
+  // Show a warning if no timezone was detected for the event
+  const noTimezoneDetected = !eventTimezone;
+
   if (!showLocalTime || !localTime || isLocalTimezone) {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <span>{eventTime}</span>
+      <div className={`space-y-1 ${className}`}>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span>{eventTime}</span>
+        </div>
+        {noTimezoneDetected && (
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-amber-500" />
+            <span className="text-xs text-amber-600">
+              Timezone not specified - showing in your local time
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -221,6 +234,14 @@ export function TimezoneDisplay({
           {localTime} (your time)
         </span>
       </div>
+      {noTimezoneDetected && (
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-amber-500" />
+          <span className="text-xs text-amber-600">
+            Event timezone not specified
+          </span>
+        </div>
+      )}
     </div>
   );
 }

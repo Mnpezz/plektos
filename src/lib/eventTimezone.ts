@@ -419,6 +419,21 @@ export function getEventTimezone(
     }
   }
 
+  // Also check for date-based events (kind 31922) timezone tags
+  if (event.kind === 31922) {
+    const tzid = event.tags.find((tag) => tag[0] === "tzid")?.[1];
+    if (tzid && isValidTimezone(tzid)) {
+      console.debug(`Found tzid timezone for date event: ${tzid}`);
+      return tzid;
+    }
+
+    const timezone = event.tags.find((tag) => tag[0] === "timezone")?.[1];
+    if (timezone && isValidTimezone(timezone)) {
+      console.debug(`Found timezone tag for date event: ${timezone}`);
+      return timezone;
+    }
+  }
+
   // Fallback to location-based timezone detection
   const location = event.tags.find((tag) => tag[0] === "location")?.[1];
   if (!location) {
@@ -658,49 +673,101 @@ export function createTimestampInTimezone(
   timezone: string
 ): number {
   try {
-    // Create a date string in ISO format
-    const dateTimeString = `${dateString}T${timeString}:00`;
+    // Parse the date and time components
+    const [year, month, day] = dateString.split('-').map(Number);
+    const [hours, minutes] = timeString.split(':').map(Number);
 
-    // Create a date object - this will be interpreted in the local timezone
-    const localDate = new Date(dateTimeString);
-
-    // Get the timezone offset for the target timezone
-    const targetOffset = getTimezoneOffsetMinutes(timezone, localDate);
-    const localOffset = localDate.getTimezoneOffset();
-
-    // Calculate the difference and adjust
-    const offsetDiff = targetOffset - localOffset;
-    const adjustedTimestamp = localDate.getTime() + offsetDiff * 60 * 1000;
-
-    return Math.floor(adjustedTimestamp / 1000);
+    // The key insight: we want to create a timestamp that, when converted back to the target timezone,
+    // displays the exact date and time the user specified.
+    
+    // Step 1: Create a date object representing the desired time in the target timezone
+    // We'll use a binary search approach to find the correct UTC timestamp
+    
+    let low = new Date(year, month - 1, day, hours, minutes).getTime() - (24 * 60 * 60 * 1000); // 24 hours before
+    let high = new Date(year, month - 1, day, hours, minutes).getTime() + (24 * 60 * 60 * 1000); // 24 hours after
+    
+    // Binary search to find the UTC timestamp that gives us the right local time
+    while (high - low > 60000) { // Within 1 minute accuracy
+      const mid = Math.floor((low + high) / 2);
+      const testDate = new Date(mid);
+      
+      // Check what time this UTC timestamp shows in the target timezone
+      const timeInTargetTz = testDate.toLocaleString("en-CA", {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      
+      // Parse the result
+      const [datePart, timePart] = timeInTargetTz.split(', ');
+      const [tzYear, tzMonth, tzDay] = datePart.split('-').map(Number);
+      const [tzHours, tzMinutes] = timePart.split(':').map(Number);
+      
+      // Compare with our target
+      if (tzYear < year || (tzYear === year && tzMonth < month) || 
+          (tzYear === year && tzMonth === month && tzDay < day) ||
+          (tzYear === year && tzMonth === month && tzDay === day && tzHours < hours) ||
+          (tzYear === year && tzMonth === month && tzDay === day && tzHours === hours && tzMinutes < minutes)) {
+        low = mid;
+      } else if (tzYear > year || (tzYear === year && tzMonth > month) || 
+                 (tzYear === year && tzMonth === month && tzDay > day) ||
+                 (tzYear === year && tzMonth === month && tzDay === day && tzHours > hours) ||
+                 (tzYear === year && tzMonth === month && tzDay === day && tzHours === hours && tzMinutes > minutes)) {
+        high = mid;
+      } else {
+        // Exact match found
+        return Math.floor(mid / 1000);
+      }
+    }
+    
+    // Return the closest match
+    return Math.floor(low / 1000);
+    
   } catch (error) {
     console.error("Error creating timestamp in timezone:", error);
-    // Fallback to local timezone
+    
+    // Fallback to a simpler approach
     const dateTimeString = `${dateString}T${timeString}:00`;
-    return Math.floor(new Date(dateTimeString).getTime() / 1000);
+    const localDate = new Date(dateTimeString);
+    
+    // Get the user's timezone offset and the target timezone offset
+    const userOffset = localDate.getTimezoneOffset() * 60 * 1000; // in milliseconds
+    
+    // Create a rough estimate by assuming the target timezone offset
+    try {
+      const testDate = new Date();
+      const utcTime = testDate.getTime() + (testDate.getTimezoneOffset() * 60000);
+      const targetTime = new Date(utcTime + getTimezoneOffsetForDate(testDate, timezone));
+      const targetOffset = testDate.getTime() - targetTime.getTime();
+      
+      const adjustedTime = localDate.getTime() + userOffset - targetOffset;
+      return Math.floor(adjustedTime / 1000);
+    } catch (fallbackError) {
+      console.error("Fallback failed:", fallbackError);
+      return Math.floor(localDate.getTime() / 1000);
+    }
   }
 }
 
+
+
 /**
- * Gets the timezone offset in minutes for a specific timezone and date
+ * Gets the timezone offset in milliseconds for a specific timezone and date
  */
-function getTimezoneOffsetMinutes(timezone: string, date: Date): number {
+function getTimezoneOffsetForDate(date: Date, timezone: string): number {
   try {
-    // Create a date string in the target timezone
-    const dateInTimezone = date.toLocaleString("en-US", { timeZone: timezone });
-
-    // Create a new date object from the timezone-specific string
-    const timezoneDate = new Date(dateInTimezone);
-
-    // Get the UTC time of the original date
-    const utcTime = date.getTime();
-
-    // Get the UTC time of the timezone-specific date
-    const timezoneUtcTime = timezoneDate.getTime();
-
-    // Calculate the offset in minutes
-    const offsetMs = utcTime - timezoneUtcTime;
-    return Math.round(offsetMs / (60 * 1000));
+    // Get the time in the target timezone
+    const timeInTargetTz = new Date(date.toLocaleString("en-US", { timeZone: timezone }));
+    
+    // Get the time in UTC
+    const timeInUtc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+    
+    // The difference is the offset
+    return timeInTargetTz.getTime() - timeInUtc.getTime();
   } catch (error) {
     console.warn(`Error getting timezone offset for ${timezone}:`, error);
     return 0;

@@ -33,12 +33,7 @@ import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
-import { 
-  getEventTimezone, 
-  formatEventDateTime, 
-  formatEventTime, 
-  getTimezoneAbbreviation 
-} from "@/lib/eventTimezone";
+import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 
 export function Home() {
   console.log("Home component rendering");
@@ -478,8 +473,7 @@ export function Home() {
             const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
             const eventIdentifier = createEventIdentifier(event);
 
-            // Get the event's timezone for display
-            const eventTimezone = getEventTimezone(event);
+
 
             return (
               <Link key={event.id} to={`/event/${eventIdentifier}`}>
@@ -499,105 +493,7 @@ export function Home() {
                     </CardTitle>
                     {startTime && (
                       <CardDescription className="text-sm">
-                        {event.kind === 31922
-                          ? // For date-only events, format in event's timezone if available
-                            (() => {
-                              try {
-                                let startDate;
-                                if (startTime.match(/^\d{10}$/)) {
-                                  startDate = new Date(parseInt(startTime) * 1000);
-                                } else if (startTime.match(/^\d{13}$/)) {
-                                  startDate = new Date(parseInt(startTime));
-                                } else {
-                                  // For YYYY-MM-DD format, create date in event's timezone
-                                  const [year, month, day] = startTime.split('-').map(Number);
-                                  if (isNaN(year) || isNaN(month) || isNaN(day)) {
-                                    throw new Error("Invalid date format");
-                                  }
-                                  startDate = new Date(year, month - 1, day);
-                                }
-
-                                if (isNaN(startDate.getTime())) {
-                                  console.error("Invalid date:", startTime);
-                                  return "Invalid date";
-                                }
-
-                                const endTime = event.tags.find(
-                                  (tag) => tag[0] === "end"
-                                )?.[1];
-                                
-                                if (endTime && endTime !== startTime) {
-                                  let endDate;
-                                  if (endTime.match(/^\d{10}$/)) {
-                                    endDate = new Date(parseInt(endTime) * 1000);
-                                  } else if (endTime.match(/^\d{13}$/)) {
-                                    endDate = new Date(parseInt(endTime));
-                                  } else {
-                                    const [endYear, endMonth, endDay] = endTime.split('-').map(Number);
-                                    if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay)) {
-                                      endDate = new Date(endYear, endMonth - 1, endDay);
-                                    }
-                                  }
-
-                                  if (endDate && !isNaN(endDate.getTime())) {
-                                    // If start and end dates are the same, just show one date
-                                    if (startDate.toDateString() === endDate.toDateString()) {
-                                      return formatEventDateTime(startDate.getTime(), eventTimezone) + 
-                                             getTimezoneAbbreviation(eventTimezone, startDate.getTime());
-                                    }
-
-                                    // Show date range
-                                    return `${formatEventDateTime(startDate.getTime(), eventTimezone)} - ${formatEventDateTime(endDate.getTime(), eventTimezone)}` +
-                                           getTimezoneAbbreviation(eventTimezone, startDate.getTime());
-                                  }
-                                }
-
-                                // Single date
-                                return formatEventDateTime(startDate.getTime(), eventTimezone) + 
-                                       getTimezoneAbbreviation(eventTimezone, startDate.getTime());
-                              } catch (error) {
-                                console.error("Error formatting date:", error);
-                                return "Invalid date";
-                              }
-                            })()
-                          : // For time-based events, format in event's timezone and show end time if available
-                            (() => {
-                              try {
-                                const startDate = new Date(parseInt(startTime) * 1000);
-                                if (isNaN(startDate.getTime())) {
-                                  console.error("Invalid start date:", startTime);
-                                  return "Invalid date";
-                                }
-                                
-                                const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
-                                const timezoneAbbr = getTimezoneAbbreviation(eventTimezone, startDate.getTime());
-                                
-                                if (endTime) {
-                                  const endDate = new Date(parseInt(endTime) * 1000);
-                                  if (!isNaN(endDate.getTime())) {
-                                    // Show start and end times in event's timezone
-                                    const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-                                      hour: "numeric",
-                                      minute: "numeric",
-                                    });
-                                    const endTimeOnly = formatEventTime(endDate.getTime(), eventTimezone);
-                                    
-                                    return `${startDateTime} - ${endTimeOnly}${timezoneAbbr}`;
-                                  }
-                                }
-                                
-                                // Just show start time in event's timezone
-                                const startDateTime = formatEventDateTime(startDate.getTime(), eventTimezone, {
-                                  hour: "numeric",
-                                  minute: "numeric",
-                                });
-                                
-                                return `${startDateTime}${timezoneAbbr}`;
-                              } catch (error) {
-                                console.error("Error formatting date:", error);
-                                return "Invalid date";
-                              }
-                            })()}
+                        <TimezoneDisplay event={event} showLocalTime={false} />
                       </CardDescription>
                     )}
                   </CardHeader>

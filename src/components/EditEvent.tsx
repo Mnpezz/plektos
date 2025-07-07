@@ -92,15 +92,44 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
       endDate = endTime;
     } else {
       // Time-based event: startTime and endTime are Unix timestamps
+      // Parse them in the event's timezone, not the browser's timezone
       if (startTime) {
         const startDateTime = new Date(parseInt(startTime) * 1000);
-        startDate = startDateTime.toISOString().split("T")[0];
-        startTimeOfDay = startDateTime.toTimeString().slice(0, 5);
+        
+        // Format the date and time in the event's timezone
+        const dateTimeInEventTz = startDateTime.toLocaleString("en-CA", {
+          timeZone: timezone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        
+        // Parse the formatted string to extract date and time
+        const [datePart, timePart] = dateTimeInEventTz.split(', ');
+        startDate = datePart; // Already in YYYY-MM-DD format
+        startTimeOfDay = timePart; // Already in HH:MM format
       }
       if (endTime) {
         const endDateTime = new Date(parseInt(endTime) * 1000);
-        endDate = endDateTime.toISOString().split("T")[0];
-        endTimeOfDay = endDateTime.toTimeString().slice(0, 5);
+        
+        // Format the date and time in the event's timezone
+        const dateTimeInEventTz = endDateTime.toLocaleString("en-CA", {
+          timeZone: timezone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        
+        // Parse the formatted string to extract date and time
+        const [datePart, timePart] = dateTimeInEventTz.split(', ');
+        endDate = datePart; // Already in YYYY-MM-DD format
+        endTimeOfDay = timePart; // Already in HH:MM format
       }
     }
 
