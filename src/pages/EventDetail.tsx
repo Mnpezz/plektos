@@ -10,6 +10,7 @@ import { ReminderPanel } from "@/components/ReminderPanel";
 import { toast } from "sonner";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { Textarea } from "@/components/ui/textarea";
+import { LocationDisplay } from "@/components/LocationDisplay";
 import {
   Select,
   SelectContent,
@@ -529,9 +530,9 @@ export function EventDetail() {
 
           <div>
             <h3 className="font-semibold">Location</h3>
-            <p className="text-muted-foreground">
-              {event.tags.find((tag) => tag[0] === "location")?.[1]}
-            </p>
+            <LocationDisplay 
+              location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""} 
+            />
           </div>
 
           <div>
