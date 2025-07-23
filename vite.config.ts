@@ -10,6 +10,17 @@ export default defineConfig(() => ({
     port: 8080,
   },
   plugins: [react()],
+  build: {
+    // Ensure assets are versioned with hashes for cache busting
+    rollupOptions: {
+      output: {
+        // Add hash to all asset filenames for cache busting
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
