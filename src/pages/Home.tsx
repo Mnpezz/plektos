@@ -630,15 +630,13 @@ export function Home() {
                 >
                   <Link to={`/event/${eventIdentifier}`}>
                     <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
-                    {imageUrl && (
-                      <div className="aspect-video w-full overflow-hidden">
-                        <img
-                          src={imageUrl}
-                          alt={title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
+                    <div className="aspect-video w-full overflow-hidden">
+                      <img
+                        src={imageUrl || "/default-calendar.png"}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                     <CardHeader className="p-3 sm:p-6">
                       <CardTitle className="text-lg sm:text-xl line-clamp-2">
                         {title}

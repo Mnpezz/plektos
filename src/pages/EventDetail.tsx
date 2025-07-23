@@ -465,18 +465,16 @@ export function EventDetail() {
   return (
     <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
       <Card className="rounded-none sm:rounded-lg">
-        {imageUrl && (
-          <div className="aspect-video w-full overflow-hidden">
-            <img
-              src={imageUrl}
-              alt={
-                event.tags.find((tag) => tag[0] === "title")?.[1] ||
-                "Event image"
-              }
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+        <div className="aspect-video w-full overflow-hidden">
+          <img
+            src={imageUrl || "/default-calendar.png"}
+            alt={
+              event.tags.find((tag) => tag[0] === "title")?.[1] ||
+              "Event image"
+            }
+            className="w-full h-full object-cover"
+          />
+        </div>
         <CardHeader className="p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div className="space-y-1 sm:space-y-2">

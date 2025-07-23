@@ -93,7 +93,6 @@ export function LocationDisplay({ location, className }: LocationDisplayProps) {
     <div className={cn("inline-flex items-center gap-2 text-muted-foreground", className)}>
       {icon}
       <span>{displayLocation}</span>
-      <span className="text-xs text-muted-foreground/60">(not clickable)</span>
     </div>
   );
 }
