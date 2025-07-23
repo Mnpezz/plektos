@@ -1,5 +1,6 @@
 import { useEvents } from "@/lib/eventUtils";
 import { useMuteList } from "@/hooks/useMuteList";
+import { useAuthorsMetadata } from "@/hooks/useAuthorsMetadata";
 import {
   Card,
   CardContent,
@@ -53,8 +54,16 @@ export function Home() {
   const [displayedEventCount, setDisplayedEventCount] = useState(50);
   
   const allEvents = useMemo(() => allEventsData || [], [allEventsData]);
+
+  // Get unique pubkeys from all events for metadata lookup
+  const uniquePubkeys = useMemo(() => {
+    return Array.from(new Set(allEvents.map(event => event.pubkey)));
+  }, [allEvents]);
+
+  // Get metadata for all authors
+  const { data: authorsMetadata = {}, isLoading: isAuthorsLoading } = useAuthorsMetadata(uniquePubkeys);
   const [showPastEvents, setShowPastEvents] = useState(false);
-  const [locationFilter, setLocationFilter] = useState("");
+  const [keywordFilter, setKeywordFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>(
     []
@@ -215,12 +224,29 @@ export function Home() {
         return false;
       if (dateRange?.to && eventStart > dateRange.to.getTime()) return false;
 
-      // Filter by location
-      if (locationFilter) {
-        const location =
-          event.tags.find((tag) => tag[0] === "location")?.[1]?.toLowerCase() ||
-          "";
-        if (!location.includes(locationFilter.toLowerCase())) return false;
+      // Filter by keyword (location, username, title, description)
+      if (keywordFilter) {
+        const keyword = keywordFilter.toLowerCase();
+        
+        // Get event fields to search
+        const location = event.tags.find((tag) => tag[0] === "location")?.[1]?.toLowerCase() || "";
+        const title = event.tags.find((tag) => tag[0] === "title")?.[1]?.toLowerCase() || "";
+        const description = event.content.toLowerCase();
+        
+        // Get author metadata for username search
+        const authorMetadata = authorsMetadata[event.pubkey];
+        const username = authorMetadata?.name?.toLowerCase() || "";
+        const displayName = authorMetadata?.display_name?.toLowerCase() || "";
+        
+        // Check if keyword matches any of these fields
+        const matchesKeyword = 
+          location.includes(keyword) ||
+          title.includes(keyword) ||
+          description.includes(keyword) ||
+          username.includes(keyword) ||
+          displayName.includes(keyword);
+          
+        if (!matchesKeyword) return false;
       }
 
       // Filter by categories
@@ -284,13 +310,13 @@ export function Home() {
 
   const clearFilters = () => {
     setShowPastEvents(false);
-    setLocationFilter("");
+    setKeywordFilter("");
     setDateRange(undefined);
     setSelectedCategories([]);
   };
 
   const hasActiveFilters =
-    locationFilter ||
+    keywordFilter ||
     dateRange ||
     showPastEvents ||
     selectedCategories.length > 0;
@@ -362,7 +388,7 @@ export function Home() {
     }
   }, [allEvents, allFilteredEvents, filteredEvents, displayedEventCount, canLoadMore, isLoading, error, viewMode]);
 
-  if (isLoading || isMuteListLoading) {
+  if (isLoading || isMuteListLoading || isAuthorsLoading) {
     console.log("Loading events...");
     return <Spinner />;
   }
@@ -463,16 +489,20 @@ export function Home() {
           <CollapsibleContent>
             <CardContent className="p-3 sm:p-4 pt-0 space-y-3 sm:space-y-4">
               <div className="flex flex-col gap-3 sm:gap-4">
-                {/* Location Filter */}
-                <div className="flex-1">
+                {/* Keyword Filter */}
+                <div className="flex-1 space-y-2">
+                  <Label className="text-sm font-medium">Search</Label>
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Filter by location..."
-                      value={locationFilter}
-                      onChange={(e) => setLocationFilter(e.target.value)}
+                      placeholder="Filter by location, name, title..."
+                      value={keywordFilter}
+                      onChange={(e) => setKeywordFilter(e.target.value)}
                       className="pl-8"
                     />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Search across event titles, descriptions, locations, and organizer names
                   </div>
                 </div>
 
