@@ -3,42 +3,46 @@ import { Link } from "react-router-dom";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, MapPin, Clock } from "lucide-react";
+import { Calendar, Ticket, History } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUserRSVPs, type UserRSVPWithEvent } from "@/hooks/useUserRSVPs";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { createEventIdentifier } from "@/lib/nip19Utils";
+import { TimezoneDisplay } from '@/components/TimezoneDisplay';
 
 function EventCard({ rsvpData }: { rsvpData: UserRSVPWithEvent }) {
-  const { event, status, eventTitle, eventDate } = rsvpData;
-
-  // Get additional event details from tags
+  const { event, status, eventTitle } = rsvpData;
   const location = event.tags.find((tag) => tag[0] === "location")?.[1];
+  const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
+  const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
   const eventIdentifier = createEventIdentifier(event);
-
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <CardTitle className="text-lg">
-              <Link
-                to={`/event/${eventIdentifier}`}
-                className="hover:text-primary transition-colors"
-              >
-                {eventTitle}
-              </Link>
-            </CardTitle>
-            <CardDescription className="mt-1">{event.content}</CardDescription>
-          </div>
-          <div className="flex gap-2 flex-col items-end">
+    <Link to={`/event/${eventIdentifier}`}> 
+      <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group mb-4">
+        <div className="aspect-video w-full overflow-hidden relative">
+          <img
+            src={imageUrl || "/default-calendar.png"}
+            alt={eventTitle}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        </div>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
+            {eventTitle}
+          </CardTitle>
+          {startTime && (
+            <div className="text-sm font-medium">
+              <TimezoneDisplay event={event} showLocalTime={false} />
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-2 mt-2">
             <Badge
               variant="outline"
               className={
@@ -56,55 +60,25 @@ function EventCard({ rsvpData }: { rsvpData: UserRSVPWithEvent }) {
                 : "Can't Go"}
             </Badge>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>
-              {event.kind === 31922
-                ? eventDate.toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                : eventDate.toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "numeric",
-                  })}
-            </span>
-          </div>
-          {event.kind === 31923 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>
-                {eventDate.toLocaleTimeString(undefined, {
-                  hour: "numeric",
-                  minute: "numeric",
-                })}
-              </span>
-            </div>
-          )}
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0">
+          <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
+            {event.content}
+          </p>
           {location && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{location}</span>
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
+              <span className="text-primary">📍</span>
+              <span className="font-medium">{location}</span>
             </div>
           )}
           {rsvpData.rsvp.content && (
-            <div className="mt-3 p-2 bg-muted/50 rounded-md">
-              <p className="text-sm text-muted-foreground">
-                <strong>Your note:</strong> {rsvpData.rsvp.content}
-              </p>
-            </div>
+            <p className="text-muted-foreground text-sm mt-2">
+              Your note: {rsvpData.rsvp.content}
+            </p>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -141,7 +115,8 @@ export function MyTickets() {
     return (
       <div className="container px-0 sm:px-4 py-2 sm:py-6">
         <div className="px-3 sm:px-0 text-center">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-4">
+          <div className="flex justify-center mb-2"><Ticket className="h-12 w-12 text-primary" /></div>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent mb-4">
             My Tickets
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mb-6">
@@ -158,18 +133,19 @@ export function MyTickets() {
   return (
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
       <div className="px-3 sm:px-0">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
+        <div className="flex justify-center mb-2"><Ticket className="h-12 w-12 text-primary" /></div>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent mb-2 text-center">
           My Tickets
         </h1>
-        <p className="text-sm md:text-base text-muted-foreground">
+        <p className="text-sm md:text-base text-muted-foreground text-center">
           View your upcoming events and past event history
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="past">Past</TabsTrigger>
+        <TabsList className="flex gap-2">
+          <TabsTrigger value="upcoming" className="flex items-center gap-1"><Calendar className="h-4 w-4 text-primary" /> Upcoming</TabsTrigger>
+          <TabsTrigger value="past" className="flex items-center gap-1"><History className="h-4 w-4 text-primary" /> Past</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upcoming" className="mt-6">
@@ -187,13 +163,13 @@ export function MyTickets() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {rsvpData?.upcoming && rsvpData.upcoming.length > 0 ? (
                 rsvpData.upcoming.map((rsvpEvent) => (
                   <EventCard key={rsvpEvent.rsvp.id} rsvpData={rsvpEvent} />
                 ))
               ) : (
-                <Card className="p-8 text-center">
+                <Card className="p-8 text-center col-span-full">
                   <CardContent className="pt-6">
                     <h3 className="text-lg font-semibold mb-2">
                       No Upcoming Events
@@ -224,13 +200,13 @@ export function MyTickets() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {rsvpData?.past && rsvpData.past.length > 0 ? (
                 rsvpData.past.map((rsvpEvent) => (
                   <EventCard key={rsvpEvent.rsvp.id} rsvpData={rsvpEvent} />
                 ))
               ) : (
-                <Card className="p-8 text-center">
+                <Card className="p-8 text-center col-span-full">
                   <CardContent className="pt-6">
                     <h3 className="text-lg font-semibold mb-2">
                       No Past Events

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Share2, Calendar } from "lucide-react";
+import { Share2, Calendar, MapPin, Users, Info, Ticket, PartyPopper } from "lucide-react";
 import { RSVPAvatars } from "@/components/RSVPAvatars";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type {
@@ -479,6 +479,7 @@ export function EventDetail() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div className="space-y-1 sm:space-y-2">
               <CardTitle>
+                <span className="inline-block align-middle mr-2"><PartyPopper className="inline h-6 w-6 text-primary" /></span>
                 {event.tags.find((tag) => tag[0] === "title")?.[1]}
               </CardTitle>
               <EventAuthor pubkey={event.pubkey} />
@@ -516,7 +517,7 @@ export function EventDetail() {
         </CardHeader>
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-4">
           <div>
-            <h3 className="font-semibold">Description</h3>
+            <h3 className="font-semibold flex items-center gap-2"><Info className="h-5 w-5 text-primary" /> Description</h3>
             <p className="text-muted-foreground">{event.content}</p>
           </div>
 
@@ -527,19 +528,19 @@ export function EventDetail() {
           />
 
           <div>
-            <h3 className="font-semibold">Location</h3>
+            <h3 className="font-semibold flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Location</h3>
             <LocationDisplay 
               location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""} 
             />
           </div>
 
           <div>
-            <h3 className="font-semibold">Date & Time</h3>
+            <h3 className="font-semibold flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Date & Time</h3>
             <TimezoneDisplay event={event} showLocalTime={true} />
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2">Attendees</h3>
+            <h3 className="font-semibold mb-2 flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Attendees</h3>
             <div className="space-y-4">
               {acceptedRSVPs.length > 0 && (
                 <div>
@@ -598,7 +599,7 @@ export function EventDetail() {
           {user && !isHost && (
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">RSVP</h3>
+                <h3 className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> RSVP</h3>
                 {currentStatus && (
                   <Badge
                     variant="outline"
@@ -662,7 +663,7 @@ export function EventDetail() {
 
           {isPaidEvent && (
             <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2">Ticket Information</h3>
+              <h3 className="font-semibold mb-2 flex items-center gap-2"><Ticket className="h-5 w-5 text-primary" /> Ticket Information</h3>
               <p className="text-muted-foreground mb-4">
                 Price: {formatAmount(parseInt(price))}
               </p>

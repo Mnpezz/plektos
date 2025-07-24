@@ -26,6 +26,7 @@ import {
   getUserTimezone,
   createTimestampInTimezone,
 } from "@/lib/eventTimezone";
+import { PartyPopper, Target, FileText, Calendar as CalendarIcon, Flag, Clock, Globe, Rocket } from "lucide-react";
 
 export function CreateEvent() {
   const navigate = useNavigate();
@@ -246,7 +247,7 @@ export function CreateEvent() {
   return (
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-6 sm:space-y-8">
       <div className="px-3 sm:px-0 text-center space-y-4">
-        <div className="text-5xl">🎉</div>
+        <div className="flex justify-center"><PartyPopper className="h-12 w-12 text-primary" /></div>
         <div className="space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
             Create Your Event
@@ -259,7 +260,7 @@ export function CreateEvent() {
       <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl mx-auto">
         <div className="space-y-3">
           <Label htmlFor="title" className="text-lg font-semibold flex items-center gap-2">
-            🎯 Event Title
+            <Target className="h-5 w-5 text-primary" /> Event Title
           </Label>
           <Input
             id="title"
@@ -275,7 +276,7 @@ export function CreateEvent() {
 
         <div className="space-y-3">
           <Label htmlFor="description" className="text-lg font-semibold flex items-center gap-2">
-            📝 Description
+            <FileText className="h-5 w-5 text-primary" /> Description
           </Label>
           <Textarea
             id="description"
@@ -321,7 +322,7 @@ export function CreateEvent() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <Label htmlFor="startDate" className="text-lg font-semibold flex items-center gap-2">
-              📅 Start Date
+              <CalendarIcon className="h-5 w-5 text-primary" /> Start Date
             </Label>
             <Calendar
               id="startDate"
@@ -361,7 +362,7 @@ export function CreateEvent() {
           </div>
           <div className="space-y-3">
             <Label htmlFor="endDate" className="text-lg font-semibold flex items-center gap-2">
-              🏁 End Date
+              <Flag className="h-5 w-5 text-primary" /> End Date
             </Label>
             <Calendar
               id="endDate"
@@ -406,7 +407,7 @@ export function CreateEvent() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <Label className="text-lg font-semibold flex items-center gap-2">
-              🕐 Start Time (Optional)
+              <Clock className="h-5 w-5 text-primary" /> Start Time (Optional)
             </Label>
             <TimePicker
               value={formData.startTime}
@@ -417,7 +418,7 @@ export function CreateEvent() {
           </div>
           <div className="space-y-3">
             <Label className="text-lg font-semibold flex items-center gap-2">
-              🕕 End Time (Optional)
+              <Clock className="h-5 w-5 text-primary" /> End Time (Optional)
             </Label>
             <TimePicker
               value={formData.endTime}
@@ -431,7 +432,7 @@ export function CreateEvent() {
         {(formData.startTime || formData.endTime) && (
           <div className="space-y-3">
             <Label className="text-lg font-semibold flex items-center gap-2">
-              🌍 Timezone
+              <Globe className="h-5 w-5 text-primary" /> Timezone
             </Label>
             <Select
               value={formData.timezone}
@@ -479,7 +480,7 @@ export function CreateEvent() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                🚀 Create Event
+                <Rocket className="h-5 w-5 text-primary" /> Create Event
               </div>
             )}
           </Button>

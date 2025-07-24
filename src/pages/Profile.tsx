@@ -21,13 +21,15 @@ import { Link } from "react-router-dom";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import { ZappableLightningAddress } from "@/components/ZappableLightningAddress";
 import { EditProfileForm } from "@/components/EditProfileForm";
-import { ExternalLink, Loader2, Settings } from "lucide-react";
+import { ExternalLink, Loader2, Settings, PartyPopper, Users } from "lucide-react";
+import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import type {
   DateBasedEvent,
   TimeBasedEvent,
   EventRSVP,
 } from "@/lib/eventTypes";
 import { useState, useEffect } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export function Profile() {
   const { npub } = useParams<{ npub: string }>();
@@ -142,6 +144,7 @@ export function Profile() {
   // Show profile info immediately when available, even if other sections are loading
   return (
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+      {/* Profile Info Card */}
       <Card className="rounded-none sm:rounded-lg">
         <CardHeader className="relative p-3 sm:p-6">
           {/* Action menu positioned absolutely in top right corner */}
@@ -160,7 +163,7 @@ export function Profile() {
                     <Settings className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl w-full sm:w-[500px] md:w-[600px] lg:w-[700px] max-h-[90vh] overflow-y-auto p-0 sm:p-8">
                   <DialogHeader>
                     <DialogTitle>Edit Profile</DialogTitle>
                     <DialogDescription>
@@ -223,7 +226,6 @@ export function Profile() {
             </div>
           </div>
         </CardHeader>
-
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-6">
           {/* About section - show immediately when available */}
           {author.isLoading ? (
@@ -256,93 +258,127 @@ export function Profile() {
               </a>
             </div>
           )}
+        </CardContent>
+      </Card>
 
-          {/* Created Events section */}
-          <div>
-            <h3 className="font-semibold mb-4">Created Events</h3>
-            <div className="space-y-4">
-              {isLoadingCreated ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading events...</span>
-                </div>
-              ) : createdEventsError ? (
-                <p className="text-muted-foreground">
-                  Unable to load created events
-                </p>
-              ) : createdEvents.length === 0 ? (
-                <p className="text-muted-foreground">No events created yet</p>
-              ) : (
-                createdEvents.map((event) => {
-                  const title =
-                    event.tags.find((tag) => tag[0] === "title")?.[1] ||
-                    "Untitled";
-                  const eventIdentifier = createEventIdentifier(event);
+      {/* Separator between profile info and events */}
+      <div className="py-2"><hr className="border-border" /></div>
 
-                  return (
-                    <Card key={event.id} className="rounded-none sm:rounded-lg">
-                      <CardContent className="p-3 sm:p-6">
-                        <Link
-                          to={`/event/${eventIdentifier}`}
-                          className="block hover:opacity-80 transition-opacity"
-                        >
-                          <h4 className="font-medium mb-2">{title}</h4>
-                          <p className="text-muted-foreground text-sm">
-                            {event.content}
-                          </p>
-                        </Link>
+      {/* Events Section: Tabs for Created and RSVP'd Events */}
+      <Tabs defaultValue="created" className="w-full">
+        <TabsList className="flex gap-2 mb-6">
+          <TabsTrigger value="created" className="flex items-center gap-2"><PartyPopper className="h-5 w-5 text-primary" /> Created Events</TabsTrigger>
+          <TabsTrigger value="rsvpd" className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> RSVP'd Events</TabsTrigger>
+        </TabsList>
+        <TabsContent value="created">
+          {isLoadingCreated ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading events...</span>
+            </div>
+          ) : createdEventsError ? (
+            <p className="text-muted-foreground">Unable to load created events</p>
+          ) : createdEvents.length === 0 ? (
+            <p className="text-muted-foreground">No events created yet</p>
+          ) : (
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {createdEvents.map((event) => {
+                const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
+                const description = event.content;
+                const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+                const location = event.tags.find((tag) => tag[0] === "location")?.[1];
+                const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
+                const eventIdentifier = createEventIdentifier(event);
+                return (
+                  <Link to={`/event/${eventIdentifier}`} key={event.id}>
+                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
+                      <div className="aspect-video w-full overflow-hidden relative">
+                        <img
+                          src={imageUrl || "/default-calendar.png"}
+                          alt={title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                      <CardHeader className="p-4 sm:p-6">
+                        <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
+                          {title}
+                        </CardTitle>
+                        {startTime && (
+                          <div className="text-sm font-medium">
+                            <TimezoneDisplay event={event} showLocalTime={false} />
+                          </div>
+                        )}
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
+                          {description}
+                        </p>
+                        {location && (
+                          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
+                            <span className="text-primary">📍</span>
+                            <span className="font-medium">{location}</span>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
-                  );
-                })
-              )}
+                  </Link>
+                );
+              })}
             </div>
-          </div>
-
-          {/* RSVP'd Events section */}
-          <div>
-            <h3 className="font-semibold mb-4">RSVP'd Events</h3>
-            <div className="space-y-4">
-              {isLoadingRSVPs ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading RSVPs...</span>
-                </div>
-              ) : rsvpsError ? (
-                <p className="text-muted-foreground">Unable to load RSVPs</p>
-              ) : rsvps.length === 0 ? (
-                <p className="text-muted-foreground">No RSVPs yet</p>
-              ) : isLoadingRsvpEvents ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading RSVP event details...</span>
-                </div>
-              ) : rsvpEventsError ? (
-                <p className="text-muted-foreground">
-                  Unable to load RSVP event details
-                </p>
-              ) : (
-                rsvps.map((rsvp) => {
-                  const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
-                  const status = rsvp.tags.find(
-                    (tag) => tag[0] === "status"
-                  )?.[1];
-                  const event = rsvpEvents.find((e) => e.id === eventId);
-
-                  if (!eventId || !event) return null;
-
-                  const title =
-                    event.tags.find((tag) => tag[0] === "title")?.[1] ||
-                    "Untitled";
-                  const startTime = event.tags.find(
-                    (tag) => tag[0] === "start"
-                  )?.[1];
-                  const eventIdentifier = createEventIdentifier(event);
-
-                  return (
-                    <Card key={rsvp.id} className="rounded-none sm:rounded-lg">
-                      <CardContent className="p-3 sm:p-6">
-                        <div className="flex items-center justify-between mb-2">
+          )}
+        </TabsContent>
+        <TabsContent value="rsvpd">
+          {isLoadingRSVPs ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading RSVPs...</span>
+            </div>
+          ) : rsvpsError ? (
+            <p className="text-muted-foreground">Unable to load RSVPs</p>
+          ) : rsvps.length === 0 ? (
+            <p className="text-muted-foreground">No RSVPs yet</p>
+          ) : isLoadingRsvpEvents ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading RSVP event details...</span>
+            </div>
+          ) : rsvpEventsError ? (
+            <p className="text-muted-foreground">Unable to load RSVP event details</p>
+          ) : (
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {rsvps.map((rsvp) => {
+                const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
+                const status = rsvp.tags.find((tag) => tag[0] === "status")?.[1];
+                const event = rsvpEvents.find((e) => e.id === eventId);
+                if (!eventId || !event) return null;
+                const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
+                const description = event.content;
+                const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+                const location = event.tags.find((tag) => tag[0] === "location")?.[1];
+                const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
+                const eventIdentifier = createEventIdentifier(event);
+                return (
+                  <Link to={`/event/${eventIdentifier}`} key={rsvp.id}>
+                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
+                      <div className="aspect-video w-full overflow-hidden relative">
+                        <img
+                          src={imageUrl || "/default-calendar.png"}
+                          alt={title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                      <CardHeader className="p-4 sm:p-6">
+                        <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
+                          {title}
+                        </CardTitle>
+                        {startTime && (
+                          <div className="text-sm font-medium">
+                            <TimezoneDisplay event={event} showLocalTime={false} />
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mb-2 mt-2">
                           <Badge
                             variant="outline"
                             className={
@@ -360,44 +396,17 @@ export function Profile() {
                               : "Can't Go"}
                           </Badge>
                         </div>
-                        <Link
-                          to={`/event/${eventIdentifier}`}
-                          className="block hover:opacity-80 transition-opacity"
-                        >
-                          <h4 className="font-medium mb-2">{title}</h4>
-                          {startTime && (
-                            <p className="text-muted-foreground text-sm">
-                              {event.kind === 31922
-                                ? (() => {
-                                    // For date-only events, format the YYYY-MM-DD date string
-                                    const date = new Date(
-                                      startTime + "T00:00:00Z"
-                                    );
-                                    return date.toLocaleDateString(undefined, {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                    });
-                                  })()
-                                : (() => {
-                                    // For time-based events, format the Unix timestamp
-                                    const date = new Date(
-                                      parseInt(startTime) * 1000
-                                    );
-                                    return date.toLocaleString(undefined, {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                      hour: "numeric",
-                                      minute: "numeric",
-                                    });
-                                  })()}
-                            </p>
-                          )}
-                          <p className="text-muted-foreground text-sm mt-2">
-                            {event.content}
-                          </p>
-                        </Link>
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
+                          {description}
+                        </p>
+                        {location && (
+                          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
+                            <span className="text-primary">📍</span>
+                            <span className="font-medium">{location}</span>
+                          </div>
+                        )}
                         {rsvp.content && (
                           <p className="text-muted-foreground text-sm mt-2">
                             Your note: {rsvp.content}
@@ -405,13 +414,13 @@ export function Profile() {
                         )}
                       </CardContent>
                     </Card>
-                  );
-                })
-              )}
+                  </Link>
+                );
+              })}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
