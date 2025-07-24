@@ -35,7 +35,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const { shouldShowOnboarding, completeOnboarding } = useOnboarding();
+  const { shouldShowOnboarding, completeOnboarding, markUserAsInteracted } = useOnboarding();
 
   // Debug: Log mobile detection
   console.log('AppNavigation: isMobile =', isMobile, 'window.innerWidth =', typeof window !== 'undefined' ? window.innerWidth : 'undefined');
@@ -246,7 +246,9 @@ export function AppNavigation({ children }: AppNavigationProps) {
         open={shouldShowOnboarding}
         onOpenChange={(open) => {
           if (!open) {
-            completeOnboarding();
+            // If user closes onboarding, mark them as having interacted
+            // so they don't see it again
+            markUserAsInteracted();
           }
         }}
         onComplete={completeOnboarding}

@@ -215,6 +215,16 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({
       <DialogContent 
         className="sm:max-w-md p-0 overflow-hidden rounded-2xl"
       >
+        {/* Close button for users who want to skip onboarding */}
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute top-4 right-4 z-10 rounded-full p-2 hover:bg-muted transition-colors"
+          aria-label="Close onboarding"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         <DialogHeader className="px-6 pt-6 pb-0">
           <div className="flex items-center justify-center mb-4">
             {getStepIcon(step)}

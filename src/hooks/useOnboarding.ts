@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { useCurrentUser } from './useCurrentUser';
+import { useAuthor } from './useAuthor';
 
 export interface OnboardingState {
   hasCompletedOnboarding: boolean;
@@ -16,6 +17,14 @@ const defaultOnboardingState: OnboardingState = {
 export function useOnboarding() {
   const { user } = useCurrentUser();
   const previousUserRef = useRef<string | undefined>();
+  
+  // Check if user has an existing profile
+  const authorQuery = useAuthor(user?.pubkey || '');
+  const hasExistingProfile = authorQuery.data?.metadata && (
+    authorQuery.data.metadata.name || 
+    authorQuery.data.metadata.display_name || 
+    authorQuery.data.metadata.about
+  );
 
   // Create stable keys that don't change during the session
   const onboardingKey = useMemo(() => `plektos-onboarding-${user?.pubkey || 'default'}`, [user?.pubkey]);
@@ -161,7 +170,17 @@ export function useOnboarding() {
   const onboardingState = getOnboardingState();
   const userHasInteracted = getUserHasInteracted();
 
-  // Determine if we should show onboarding - rely solely on localStorage
+  // Auto-complete onboarding for users with existing profiles
+  useEffect(() => {
+    if (user && hasExistingProfile && !onboardingState.hasCompletedOnboarding) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Auto-completing onboarding for existing user with profile:', user.pubkey?.slice(0, 8) + '...');
+      }
+      completeOnboarding();
+    }
+  }, [user, hasExistingProfile, onboardingState.hasCompletedOnboarding]);
+
+  // Determine if we should show onboarding - check localStorage and existing profiles
   const shouldShowOnboarding = (() => {
     if (process.env.NODE_ENV === 'development') {
       console.log('shouldShowOnboarding calculation:', {
@@ -171,6 +190,7 @@ export function useOnboarding() {
         interactionKey,
         hasCompletedOnboarding: onboardingState.hasCompletedOnboarding,
         userHasInteracted,
+        hasExistingProfile,
         onboardingState,
       });
     }
@@ -190,6 +210,14 @@ export function useOnboarding() {
           hasCompletedOnboarding: onboardingState.hasCompletedOnboarding,
           onboardingState
         });
+      }
+      return false;
+    }
+
+    // If user has an existing profile, don't show onboarding
+    if (hasExistingProfile) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Not showing onboarding: user has existing profile');
       }
       return false;
     }

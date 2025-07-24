@@ -416,7 +416,7 @@ export function Home() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-2">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Discover Amazing Events 🎉
+              Discover Events 🎉
             </h1>
             <p className="text-base md:text-lg text-muted-foreground">
               Find your next adventure, connect with your community
