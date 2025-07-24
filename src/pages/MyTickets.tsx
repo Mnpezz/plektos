@@ -137,7 +137,7 @@ export function MyTickets() {
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent mb-2 text-center">
           My Tickets
         </h1>
-        <p className="text-sm md:text-base text-muted-foreground text-center">
+        <p className="text-lg md:text-xl text-muted-foreground text-center">
           View your upcoming events and past event history
         </p>
       </div>
