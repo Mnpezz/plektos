@@ -15,6 +15,14 @@ interface CommentItemProps {
   onLike: () => void;
 }
 
+// Helper to extract first image URL from comment content
+function extractImageUrl(content: string): string | null {
+  // Simple regex for image URLs
+  const regex = /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp))/i;
+  const match = content.match(regex);
+  return match ? match[1] : null;
+}
+
 export function CommentItem({ 
   comment, 
   likeCount, 
@@ -58,6 +66,14 @@ export function CommentItem({
         <p className="text-sm text-foreground whitespace-pre-wrap break-words">
           {comment.content}
         </p>
+        {extractImageUrl(comment.content) && (
+          <img
+            src={extractImageUrl(comment.content)!}
+            alt="Comment attachment"
+            className="max-w-xs rounded-lg mt-2 border"
+            loading="lazy"
+          />
+        )}
         
         <div className="flex items-center gap-1">
           <Button

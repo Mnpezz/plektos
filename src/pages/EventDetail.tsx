@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Share2, Calendar, MapPin, Users, Info, Ticket, PartyPopper } from "lucide-react";
+import { Share2, Calendar, Users } from "lucide-react";
 import { RSVPAvatars } from "@/components/RSVPAvatars";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type {
@@ -479,7 +479,6 @@ export function EventDetail() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div className="space-y-1 sm:space-y-2">
               <CardTitle>
-                <span className="inline-block align-middle mr-2"><PartyPopper className="inline h-6 w-6 text-primary" /></span>
                 {event.tags.find((tag) => tag[0] === "title")?.[1]}
               </CardTitle>
               <EventAuthor pubkey={event.pubkey} />
@@ -517,7 +516,7 @@ export function EventDetail() {
         </CardHeader>
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-4">
           <div>
-            <h3 className="font-semibold flex items-center gap-2"><Info className="h-5 w-5 text-primary" /> Description</h3>
+            <h3 className="font-semibold flex items-center gap-2">📝 Description</h3>
             <p className="text-muted-foreground">{event.content}</p>
           </div>
 
@@ -528,19 +527,19 @@ export function EventDetail() {
           />
 
           <div>
-            <h3 className="font-semibold flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Location</h3>
+            <h3 className="font-semibold flex items-center gap-2">📍 Location</h3>
             <LocationDisplay 
               location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""} 
             />
           </div>
 
           <div>
-            <h3 className="font-semibold flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Date & Time</h3>
+            <h3 className="font-semibold flex items-center gap-2">🕒 Date & Time</h3>
             <TimezoneDisplay event={event} showLocalTime={true} />
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2 flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Attendees</h3>
+            <h3 className="font-semibold mb-2 flex items-center gap-2">🧑‍🤝‍🧑 Attendees</h3>
             <div className="space-y-4">
               {acceptedRSVPs.length > 0 && (
                 <div>
@@ -649,13 +648,19 @@ export function EventDetail() {
                 <Button
                   onClick={handleRSVP}
                   disabled={isSubmittingRSVP}
-                  className="w-full"
+                  className="px-12 py-4 text-lg font-semibold rounded-2xl bg-party-gradient hover:opacity-90 transition-all duration-200 hover:scale-105 shadow-lg flex items-center justify-center gap-2 mx-auto"
                 >
-                  {isSubmittingRSVP
-                    ? "Submitting..."
-                    : currentStatus
-                    ? "Update RSVP"
-                    : "Submit RSVP"}
+                  {isSubmittingRSVP ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Submitting...
+                    </div>
+                  ) : (
+                    <>
+                      <Calendar className="h-5 w-5 text-primary" />
+                      <span>{currentStatus ? "Update RSVP" : "Submit RSVP"}</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -663,7 +668,7 @@ export function EventDetail() {
 
           {isPaidEvent && (
             <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2 flex items-center gap-2"><Ticket className="h-5 w-5 text-primary" /> Ticket Information</h3>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">🎟️ Ticket Information</h3>
               <p className="text-muted-foreground mb-4">
                 Price: {formatAmount(parseInt(price))}
               </p>
@@ -678,8 +683,8 @@ export function EventDetail() {
                   eventKind={event.kind}
                   eventIdentifier={eventIdentifier}
                   fixedAmount={parseInt(price)}
-                  buttonText="Purchase Ticket"
-                  className="w-full"
+                  buttonText="🎟️ Purchase Ticket"
+                  className="w-full bg-gradient-to-r from-primary to-primary/70 text-primary-foreground font-bold shadow-lg hover:scale-105 transition-transform duration-200 relative overflow-hidden"
                 />
               ) : (
                 <p className="text-muted-foreground">

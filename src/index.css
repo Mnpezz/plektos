@@ -248,3 +248,24 @@
     opacity: 1;
   }
 }
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.animate-bounce-slow {
+  animation: bounce-slow 2.2s infinite;
+}
+
+.drop-shadow-party {
+  filter: drop-shadow(0 2px 8px var(--tw-shadow-color, theme('colors.primary.DEFAULT')));
+}
+
+@keyframes gradient-underline {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.animate-gradient-underline {
+  background-size: 200% 100%;
+  animation: gradient-underline 2.5s infinite alternate;
+}
