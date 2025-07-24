@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { NostrLoginProvider } from "@nostrify/react/login";
 import NostrProvider from "@/components/NostrProvider";
 import { App } from "./App";
+import "@fontsource-variable/outfit";
 import "./index.css";
 
 const queryClient = new QueryClient({

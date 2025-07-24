@@ -414,12 +414,12 @@ export function Home() {
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
       <div className="px-3 sm:px-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Discover Events
+          <div className="space-y-2">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Discover Amazing Events 🎉
             </h1>
-            <p className="text-sm md:text-base text-muted-foreground">
-              Where people and purpose intertwine
+            <p className="text-base md:text-lg text-muted-foreground">
+              Find your next adventure, connect with your community
             </p>
           </div>
           
@@ -430,37 +430,49 @@ export function Home() {
             onValueChange={(value) => {
               if (value) setViewMode(value as "grid" | "calendar");
             }}
-            className="justify-start sm:justify-end"
+            className="justify-start sm:justify-end bg-muted/50 rounded-2xl p-1"
           >
-            <ToggleGroupItem value="grid" aria-label="Grid view" className="gap-2">
+            <ToggleGroupItem 
+              value="grid" 
+              aria-label="Grid view" 
+              className="gap-2 rounded-xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground transition-all duration-200"
+            >
               <Grid3X3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Grid</span>
+              <span className="hidden sm:inline font-medium">Grid</span>
             </ToggleGroupItem>
-            <ToggleGroupItem value="calendar" aria-label="Calendar view" className="gap-2">
+            <ToggleGroupItem 
+              value="calendar" 
+              aria-label="Calendar view" 
+              className="gap-2 rounded-xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground transition-all duration-200"
+            >
               <CalendarViewIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Calendar</span>
+              <span className="hidden sm:inline font-medium">Calendar</span>
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
 
       {/* Filters */}
-      <Card className="rounded-none sm:rounded-lg">
+      <Card className="rounded-none sm:rounded-2xl border-2 border-primary/10 bg-gradient-to-r from-primary/5 to-accent/5">
         <Collapsible
           open={isFiltersOpen}
           onOpenChange={setIsFiltersOpen}
           className="w-full"
         >
           <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <span className="font-medium">Filters</span>
-                {hasActiveFilters && (
-                  <Badge variant="secondary" className="ml-2">
-                    Active
-                  </Badge>
-                )}
+            <div className="flex items-center justify-between p-4 sm:p-6 cursor-pointer hover:bg-primary/5 transition-all duration-200 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <Filter className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <span className="font-semibold text-lg">Find Your Perfect Event</span>
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="ml-3 bg-primary/20 text-primary border-primary/30">
+                      Filters Active
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {hasActiveFilters && (
@@ -471,15 +483,15 @@ export function Home() {
                       e.stopPropagation(); // Prevent triggering the CollapsibleTrigger
                       clearFilters();
                     }}
-                    className="h-8 px-2"
+                    className="h-9 px-3 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors"
                   >
                     <X className="h-4 w-4 mr-1" />
-                    Clear
+                    Clear All
                   </Button>
                 )}
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 transition-transform duration-200",
+                    "h-5 w-5 transition-transform duration-300 text-primary",
                     isFiltersOpen && "transform rotate-180"
                   )}
                 />
@@ -490,26 +502,29 @@ export function Home() {
             <CardContent className="p-3 sm:p-4 pt-0 space-y-3 sm:space-y-4">
               <div className="flex flex-col gap-3 sm:gap-4">
                 {/* Keyword Filter */}
-                <div className="flex-1 space-y-2">
-                  <Label className="text-sm font-medium">Search</Label>
+                <div className="flex-1 space-y-3">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Search className="h-4 w-4 text-primary" />
+                    Search Events
+                  </Label>
                   <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground" />
                     <Input
-                      placeholder="Filter by location, name, title..."
+                      placeholder="Find parties, meetups, conferences..."
                       value={keywordFilter}
                       onChange={(e) => setKeywordFilter(e.target.value)}
-                      className="pl-8"
+                      className="pl-12 py-3 text-base rounded-2xl border-2 focus:border-primary transition-all duration-200"
                     />
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Search across event titles, descriptions, locations, and organizer names
+                  <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-xl">
+                    💡 Search across event titles, descriptions, locations, and organizer names
                   </div>
                 </div>
 
                 {/* Category Filter */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Categories</Label>
-                  <div className="flex flex-wrap gap-1 sm:gap-2 max-h-32 overflow-y-auto">
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Event Categories</Label>
+                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
                     {EVENT_CATEGORIES.map((category) => (
                       <Button
                         key={category}
@@ -519,7 +534,12 @@ export function Home() {
                             : "outline"
                         }
                         size="sm"
-                        className="h-auto py-1 px-2 text-xs"
+                        className={cn(
+                          "h-auto py-2 px-4 text-sm rounded-2xl transition-all duration-200 hover:scale-105",
+                          selectedCategories.includes(category)
+                            ? "bg-primary text-primary-foreground shadow-lg"
+                            : "hover:bg-primary/10 hover:border-primary/50"
+                        )}
                         onClick={() => {
                           if (selectedCategories.includes(category)) {
                             setSelectedCategories(
@@ -538,40 +558,39 @@ export function Home() {
                     ))}
                   </div>
                   {selectedCategories.length > 0 && (
-                    <div className="text-xs text-muted-foreground">
-                      {selectedCategories.length} category(s) selected
+                    <div className="text-sm text-primary bg-primary/10 p-3 rounded-xl">
+                      🎯 {selectedCategories.length} category(s) selected
                     </div>
                   )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   {/* Date Range */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           className={cn(
-                            "justify-start text-left font-normal",
+                            "justify-start text-left font-medium rounded-2xl py-3 px-4 border-2 hover:border-primary/50 transition-all duration-200",
                             !dateRange?.from && "text-muted-foreground"
                           )}
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          <CalendarIcon className="mr-3 h-5 w-5" />
                           {dateRange?.from ? (
                             dateRange.to ? (
                               <>
-                                {format(dateRange.from, "LLL dd, y")} -{" "}
-                                {format(dateRange.to, "LLL dd, y")}
+                                {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, y")}
                               </>
                             ) : (
-                              format(dateRange.from, "LLL dd, y")
+                              format(dateRange.from, "MMM dd, y")
                             )
                           ) : (
-                            <span>Pick a date range</span>
+                            <span>📅 Pick dates</span>
                           )}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
                         <Calendar
                           initialFocus
                           mode="range"
@@ -579,19 +598,23 @@ export function Home() {
                           selected={dateRange}
                           onSelect={setDateRange}
                           numberOfMonths={2}
+                          className="rounded-2xl"
                         />
                       </PopoverContent>
                     </Popover>
                   </div>
 
                   {/* Past Events Toggle */}
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-2xl">
                     <Switch
                       id="past-events"
                       checked={showPastEvents}
                       onCheckedChange={setShowPastEvents}
+                      className="data-[state=checked]:bg-primary"
                     />
-                    <Label htmlFor="past-events">Show past events</Label>
+                    <Label htmlFor="past-events" className="font-medium cursor-pointer">
+                      🕰️ Include past events
+                    </Label>
                   </div>
                 </div>
               </div>
@@ -601,8 +624,12 @@ export function Home() {
       </Card>
 
       {filteredEvents?.length === 0 ? (
-        <div className="text-center py-8 sm:py-12">
-          <p className="text-muted-foreground">No events found</p>
+        <div className="text-center py-12 sm:py-16 space-y-4">
+          <div className="text-6xl">🎭</div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold">No events found</h3>
+            <p className="text-muted-foreground">Try adjusting your filters or check back later for new events!</p>
+          </div>
         </div>
       ) : viewMode === "calendar" ? (
         <MonthlyCalendarView events={filteredEvents || []} />
@@ -629,32 +656,34 @@ export function Home() {
                   ref={isLastElement ? lastEventElementRef : undefined}
                 >
                   <Link to={`/event/${eventIdentifier}`}>
-                    <Card className="h-full transition-colors hover:bg-muted/50 overflow-hidden rounded-none sm:rounded-lg">
-                    <div className="aspect-video w-full overflow-hidden">
+                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
+                    <div className="aspect-video w-full overflow-hidden relative">
                       <img
                         src={imageUrl || "/default-calendar.png"}
                         alt={title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
-                    <CardHeader className="p-3 sm:p-6">
-                      <CardTitle className="text-lg sm:text-xl line-clamp-2">
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
                         {title}
                       </CardTitle>
                       {startTime && (
-                        <CardDescription className="text-sm">
+                        <CardDescription className="text-sm font-medium">
                           <TimezoneDisplay event={event} showLocalTime={false} />
                         </CardDescription>
                       )}
                     </CardHeader>
-                    <CardContent className="p-3 sm:p-6 pt-0">
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
                         {description}
                       </p>
                       {location && (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          📍 {location}
-                        </p>
+                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
+                          <span className="text-primary">📍</span>
+                          <span className="font-medium">{location}</span>
+                        </div>
                       )}
                     </CardContent>
                     </Card>
@@ -670,9 +699,9 @@ export function Home() {
               <Button
                 onClick={loadMoreEvents}
                 variant="outline"
-                className="px-8"
+                className="px-8 py-3 rounded-2xl border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 font-medium"
               >
-                Load More Events ({allFilteredEvents!.length - displayedEventCount} remaining)
+                🎉 Load More Events ({allFilteredEvents!.length - displayedEventCount} remaining)
               </Button>
             </div>
           )}

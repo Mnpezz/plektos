@@ -19,10 +19,14 @@ export function LoginArea({ className }: LoginAreaProps) {
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [signupDialogOpen, setSignupDialogOpen] = useState(false);
 
+
   const handleLogin = () => {
+    console.log('LoginArea handleLogin called');
     setLoginDialogOpen(false);
     setSignupDialogOpen(false);
   };
+
+
 
   return (
     <div className={cn("inline-flex items-center justify-center", className)}>

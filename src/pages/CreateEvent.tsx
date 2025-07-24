@@ -228,49 +228,63 @@ export function CreateEvent() {
   if (!user) {
     return (
       <div className="container px-0 sm:px-4 py-2 sm:py-6">
-        <div className="px-3 sm:px-0">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-4">
-            Create Event
-          </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Please log in to create an event.
-          </p>
+        <div className="px-3 sm:px-0 text-center space-y-6 py-12">
+          <div className="text-6xl">🎪</div>
+          <div className="space-y-3">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Create Amazing Events
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Please log in to start creating unforgettable experiences for your community.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
-      <div className="px-3 sm:px-0">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
-          Create Event
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Create a new event for your community
-        </p>
+    <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-6 sm:space-y-8">
+      <div className="px-3 sm:px-0 text-center space-y-4">
+        <div className="text-5xl">🎉</div>
+        <div className="space-y-2">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            Create Your Event
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground">
+            Bring people together and create unforgettable experiences
+          </p>
+        </div>
       </div>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <Label htmlFor="title">Event Title</Label>
+      <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl mx-auto">
+        <div className="space-y-3">
+          <Label htmlFor="title" className="text-lg font-semibold flex items-center gap-2">
+            🎯 Event Title
+          </Label>
           <Input
             id="title"
             value={formData.title}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, title: e.target.value }))
             }
+            placeholder="What's the name of your amazing event?"
+            className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
             required
           />
         </div>
 
-        <div>
-          <Label htmlFor="description">Description</Label>
+        <div className="space-y-3">
+          <Label htmlFor="description" className="text-lg font-semibold flex items-center gap-2">
+            📝 Description
+          </Label>
           <Textarea
             id="description"
             value={formData.description}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
+            placeholder="Tell people what makes this event special..."
+            className="min-h-32 rounded-2xl border-2 focus:border-primary transition-all duration-200 resize-none"
             required
           />
         </div>
@@ -304,10 +318,10 @@ export function CreateEvent() {
           }
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="startDate" className="text-sm font-medium">
-              Start Date
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <Label htmlFor="startDate" className="text-lg font-semibold flex items-center gap-2">
+              📅 Start Date
             </Label>
             <Calendar
               id="startDate"
@@ -342,12 +356,12 @@ export function CreateEvent() {
                 today.setUTCHours(0, 0, 0, 0);
                 return date < today;
               }}
-              className="rounded-md border"
+              className="rounded-2xl border-2"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="endDate" className="text-sm font-medium">
-              End Date
+          <div className="space-y-3">
+            <Label htmlFor="endDate" className="text-lg font-semibold flex items-center gap-2">
+              🏁 End Date
             </Label>
             <Calendar
               id="endDate"
@@ -384,14 +398,16 @@ export function CreateEvent() {
                 startDate.setUTCHours(0, 0, 0, 0);
                 return date < startDate;
               }}
-              className="rounded-md border"
+              className="rounded-2xl border-2"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Start Time (Optional)</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold flex items-center gap-2">
+              🕐 Start Time (Optional)
+            </Label>
             <TimePicker
               value={formData.startTime}
               onChange={(value) =>
@@ -399,8 +415,10 @@ export function CreateEvent() {
               }
             />
           </div>
-          <div>
-            <Label>End Time (Optional)</Label>
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold flex items-center gap-2">
+              🕕 End Time (Optional)
+            </Label>
             <TimePicker
               value={formData.endTime}
               onChange={(value) =>
@@ -411,15 +429,17 @@ export function CreateEvent() {
         </div>
 
         {(formData.startTime || formData.endTime) && (
-          <div>
-            <Label>Timezone</Label>
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold flex items-center gap-2">
+              🌍 Timezone
+            </Label>
             <Select
               value={formData.timezone}
               onValueChange={(value) =>
                 setFormData((prev) => ({ ...prev, timezone: value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="rounded-2xl border-2 py-3">
                 <SelectValue placeholder="Select timezone" />
               </SelectTrigger>
               <SelectContent className="max-h-[400px]">
@@ -446,9 +466,24 @@ export function CreateEvent() {
           }
         />
 
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Creating..." : "Create Event"}
-        </Button>
+        <div className="flex justify-center pt-6">
+          <Button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="px-12 py-4 text-lg font-semibold rounded-2xl bg-party-gradient hover:opacity-90 transition-all duration-200 hover:scale-105 shadow-lg"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Creating Your Event...
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                🚀 Create Event
+              </div>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   );
