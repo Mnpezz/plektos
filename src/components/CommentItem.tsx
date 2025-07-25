@@ -23,6 +23,13 @@ function extractImageUrl(content: string): string | null {
   return match ? match[1] : null;
 }
 
+// Helper to remove image URLs from text content
+function removeImageUrls(content: string): string {
+  // Remove image URLs from the content to avoid showing them as text
+  const regex = /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp))/gi;
+  return content.replace(regex, '').trim();
+}
+
 export function CommentItem({ 
   comment, 
   likeCount, 
@@ -63,14 +70,17 @@ export function CommentItem({
           />
         </div>
         
-        <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-          {comment.content}
-        </p>
+        {removeImageUrls(comment.content) && (
+          <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+            {removeImageUrls(comment.content)}
+          </p>
+        )}
         {extractImageUrl(comment.content) && (
           <img
             src={extractImageUrl(comment.content)!}
             alt="Comment attachment"
-            className="max-w-xs rounded-lg mt-2 border"
+            className="w-full max-w-sm rounded-lg mt-2 border object-cover"
+            style={{ maxHeight: '300px' }}
             loading="lazy"
           />
         )}
