@@ -1,4 +1,4 @@
-import type { DateBasedEvent, TimeBasedEvent } from "./eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting } from "./eventTypes";
 import { useDirectMessage } from "@/hooks/useDirectMessage";
 
 export interface Reminder {
@@ -8,7 +8,7 @@ export interface Reminder {
   timestamp: number;
 }
 
-export function useReminders(event: DateBasedEvent | TimeBasedEvent) {
+export function useReminders(event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting) {
   const { sendDirectMessage } = useDirectMessage();
 
   const sendReminder = async (recipientPubkey: string, message: string) => {

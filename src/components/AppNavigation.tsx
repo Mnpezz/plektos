@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Search, Plus, Ticket, User } from "lucide-react";
+import { Search, Plus, Ticket, User, Heart } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { LoginArea } from "@/components/auth/LoginArea";
@@ -60,6 +60,13 @@ export function AppNavigation({ children }: AppNavigationProps) {
       onClick: handleDiscoverClick,
     },
     {
+      href: "/feed",
+      label: "Feed",
+      icon: Heart,
+      isActive: location.pathname === "/feed",
+      requireAuth: true,
+    },
+    {
       href: "/create",
       label: "Create",
       icon: Plus,
@@ -118,6 +125,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
           })}
         </SidebarMenu>
 
+
         {/* Account section */}
         <div className="mt-auto p-4 border-t border-border/50">
           <LoginArea className="flex w-full" />
@@ -130,9 +138,9 @@ export function AppNavigation({ children }: AppNavigationProps) {
   const MobileBottomNav = () => {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border/50 md:hidden safe-area-bottom">
-        <nav className="flex items-center h-20 px-4">
+        <nav className="flex items-center h-16 px-2">
           {/* Create a grid-like layout for even spacing */}
-          <div className="flex items-center justify-between w-full max-w-sm mx-auto">
+          <div className="flex items-center justify-between w-full">
             {navigationItems.map((item) => {
               if (item.requireAuth && !user) return null;
 
@@ -142,7 +150,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 h-16 w-16 p-0 rounded-2xl touch-target transition-all duration-200",
+                    "flex flex-col items-center justify-center gap-0.5 h-12 w-12 p-0 rounded-xl touch-target transition-all duration-200",
                     item.isActive 
                       ? "text-primary bg-primary/15 scale-105" 
                       : "text-muted-foreground hover:text-primary hover:bg-primary/10"
@@ -151,14 +159,15 @@ export function AppNavigation({ children }: AppNavigationProps) {
                 >
                   <Link to={item.href} onClick={item.onClick}>
                     <item.icon className={cn(
-                      "!h-6 !w-6 !min-h-6 !min-w-6 transition-transform",
+                      "!h-5 !w-5 !min-h-5 !min-w-5 transition-transform",
                       item.isActive && "animate-bounce-gentle"
                     )} />
-                    <span className="text-xs font-medium">{item.label}</span>
+                    <span className="text-[10px] font-medium leading-tight">{item.label}</span>
                   </Link>
                 </Button>
               );
             })}
+
 
             {/* User/Account button */}
             <DropdownMenu>
@@ -166,10 +175,10 @@ export function AppNavigation({ children }: AppNavigationProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex flex-col items-center justify-center gap-1 h-16 w-16 p-0 rounded-2xl touch-target text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200"
+                  className="flex flex-col items-center justify-center gap-0.5 h-12 w-12 p-0 rounded-xl touch-target text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200"
                 >
-                  <User className="!h-6 !w-6 !min-h-6 !min-w-6" />
-                  <span className="text-xs font-medium">Profile</span>
+                  <User className="!h-5 !w-5 !min-h-5 !min-w-5" />
+                  <span className="text-[10px] font-medium leading-tight">Profile</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 mb-2 rounded-2xl">
@@ -188,7 +197,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
     <>
       {isMobile ? (
         // Mobile layout - no sidebar, just content with bottom nav
-        <div className="min-h-screen bg-background pb-20">
+        <div className="min-h-screen bg-background pb-16">
           {/* Mobile header */}
           <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/95 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60 safe-area-top">
             <div className="container flex h-16 items-center justify-between">

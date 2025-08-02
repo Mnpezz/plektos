@@ -1,4 +1,4 @@
-import { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
 
 /**
  * Event timezone detection and formatting utilities.
@@ -388,7 +388,7 @@ function isValidTimezone(timezone: string): boolean {
  * Attempts to detect the timezone for an event based on timezone tags and location
  */
 export function getEventTimezone(
-  event: DateBasedEvent | TimeBasedEvent
+  event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom
 ): string | null {
   // First, check for explicit timezone tags (NIP-52 and other standards)
   const startTzid = event.tags.find((tag) => tag[0] === "start_tzid")?.[1];

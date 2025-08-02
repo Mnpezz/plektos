@@ -5,11 +5,11 @@ import {
   getTimezoneAbbreviation,
   getUserTimezone,
 } from "@/lib/eventTimezone";
-import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
 import { Clock, Globe } from "lucide-react";
 
 interface TimezoneDisplayProps {
-  event: DateBasedEvent | TimeBasedEvent;
+  event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom;
   showLocalTime?: boolean;
   className?: string;
 }
@@ -19,12 +19,19 @@ export function TimezoneDisplay({
   showLocalTime = true,
   className = "",
 }: TimezoneDisplayProps) {
-  const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
-  const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
+  // LiveEvent (30311), InteractiveRoom (30312), and RoomMeeting (30313) use "starts" tag, others use "start"
+  const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+    ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+    : event.tags.find((tag) => tag[0] === "start")?.[1];
+  const endTime = event.tags.find((tag) => tag[0] === "end")?.[1] || 
+                  event.tags.find((tag) => tag[0] === "ends")?.[1];
 
   if (!startTime) {
     return <span className="text-muted-foreground">No time specified</span>;
   }
+
+  // For live events (30311), interactive rooms (30312), and room meetings (30313), always treat as time-based events
+  const effectiveKind = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313) ? 31923 : event.kind;
 
   const eventTimezone = getEventTimezone(event);
   const userTimezone = getUserTimezone();
@@ -32,7 +39,7 @@ export function TimezoneDisplay({
 
   const getFormattedTime = () => {
     try {
-      if (event.kind === 31922) {
+      if (effectiveKind === 31922) {
         // Date-based events
         let startDate;
         if (startTime.match(/^\d{10}$/)) {
@@ -120,7 +127,7 @@ export function TimezoneDisplay({
               : null,
         };
       } else {
-        // Time-based events - use robust timestamp parsing
+        // Time-based events and live events - use robust timestamp parsing
         let timestamp = parseInt(startTime);
         
         // Handle both seconds and milliseconds timestamps

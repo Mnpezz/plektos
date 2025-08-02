@@ -1,7 +1,7 @@
 import { useNostr } from "@nostrify/react";
 import { useQuery } from "@tanstack/react-query";
 import type { NostrFilter } from "@jsr/nostrify__types";
-import type { DateBasedEvent, TimeBasedEvent, EventRSVP } from "./eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, EventRSVP, LiveEvent, RoomMeeting, InteractiveRoom } from "./eventTypes";
 import { cacheEvent } from "./indexedDB";
 import { nip19 } from "nostr-tools";
 
@@ -27,7 +27,7 @@ export function useEvents(options?: {
         
         // Main calendar events filter
         const calendarFilter: NostrFilter = {
-          kinds: [31922, 31923],
+          kinds: [31922, 31923, 30311, 30312, 30313], // Add NIP-53 live events, interactive rooms, and room meetings
           limit,
         };
         
@@ -71,6 +71,9 @@ export function useEvents(options?: {
           | DateBasedEvent
           | TimeBasedEvent
           | EventRSVP
+          | LiveEvent
+          | RoomMeeting
+          | InteractiveRoom
         )[];
 
         console.log(
@@ -85,15 +88,15 @@ export function useEvents(options?: {
         );
 
         // For replaceable events (31922, 31923), only keep the latest version of each coordinate
-        const deduplicated = typedEvents.reduce((acc, event) => {
+        const deduplicated = typedEvents.reduce((acc: (DateBasedEvent | TimeBasedEvent | EventRSVP | LiveEvent | RoomMeeting | InteractiveRoom)[], event) => {
           // For RSVP events (31925), keep all of them as they're not replaceable per se
           if (event.kind === 31925) {
             acc.push(event);
             return acc;
           }
 
-          // For replaceable calendar events (31922, 31923)
-          if (event.kind === 31922 || event.kind === 31923) {
+          // For replaceable calendar events (31922, 31923), live events (30311), interactive rooms (30312), and room meetings (30313)
+          if (event.kind === 31922 || event.kind === 31923 || event.kind === 30311 || event.kind === 30312 || event.kind === 30313) {
             const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
             if (!dTag) {
               console.warn(`Skipping event ${event.id} - missing d tag`);
@@ -134,7 +137,7 @@ export function useEvents(options?: {
           // For any other event types, just add them
           acc.push(event);
           return acc;
-        }, [] as (DateBasedEvent | TimeBasedEvent | EventRSVP)[]);
+        }, [] as (DateBasedEvent | TimeBasedEvent | EventRSVP | LiveEvent | RoomMeeting | InteractiveRoom)[]);
 
         console.log("Deduplicated events:", deduplicated.length, "events");
         
@@ -155,7 +158,7 @@ export function useEvents(options?: {
         if (duplicateCoordinates.length > 0) {
           console.error("🚨 DEDUPLICATION FAILED! Still have duplicates:", duplicateCoordinates);
           console.error("Events with duplicates:", deduplicated.filter(event => {
-            if (event.kind === 31922 || event.kind === 31923) {
+            if (event.kind === 31922 || event.kind === 31923 || event.kind === 30311) {
               const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
               if (dTag) {
                 const coordinate = `${event.kind}:${event.pubkey}:${dTag}`;
@@ -233,7 +236,7 @@ export function useSingleEvent(eventIdentifier: string | undefined) {
             limit: 1
           }], { signal });
           
-          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent | LiveEvent || null;
         } else if (decoded.type === 'nevent' || decoded.type === 'note') {
           // For regular events, query by ID
           const eventId = decoded.type === 'note' ? decoded.data : decoded.data.id;
@@ -242,7 +245,7 @@ export function useSingleEvent(eventIdentifier: string | undefined) {
             limit: 1
           }], { signal });
           
-          return events[0] as unknown as DateBasedEvent | TimeBasedEvent || null;
+          return events[0] as unknown as DateBasedEvent | TimeBasedEvent | LiveEvent || null;
         } else {
           // Try treating as raw hex ID
           const events = await nostr.query([{

@@ -4,6 +4,7 @@ import { EventDetail } from "@/pages/EventDetail";
 import { CreateEvent } from "@/pages/CreateEvent";
 import { Profile } from "@/pages/Profile";
 import { MyTickets } from "@/pages/MyTickets";
+import { SocialFeed } from "@/pages/SocialFeed";
 import { TestNotifications } from "@/pages/TestNotifications";
 
 export default function AppRouter() {
@@ -14,6 +15,7 @@ export default function AppRouter() {
       <Route path="/create" element={<CreateEvent />} />
       <Route path="/profile/:npub" element={<Profile />} />
       <Route path="/tickets" element={<MyTickets />} />
+      <Route path="/feed" element={<SocialFeed />} />
       <Route path="/test-notifications" element={<TestNotifications />} />
     </Routes>
   );

@@ -11,10 +11,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting } from "@/lib/eventTypes";
 
 interface ReminderPanelProps {
-  event: DateBasedEvent | TimeBasedEvent;
+  event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
   isHost: boolean;
   participants: string[]; // Array of participant pubkeys
 }

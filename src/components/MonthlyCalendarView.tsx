@@ -8,18 +8,20 @@ import { cn } from "@/lib/utils";
 import { createEventIdentifier } from "@/lib/nip19Utils";
 import { getEventTimezone, formatEventTime } from "@/lib/eventTimezone";
 import { useCalendarEvents } from "@/lib/eventUtils";
-import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
+import { isLiveEvent } from "@/lib/liveEventUtils";
 
 interface MonthlyCalendarViewProps {
-  events?: (DateBasedEvent | TimeBasedEvent)[]; // Make optional since we can load our own
+  events?: (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom)[]; // Make optional since we can load our own
   className?: string;
 }
 
 interface CalendarEvent {
-  event: DateBasedEvent | TimeBasedEvent;
+  event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom;
   title: string;
   startTime?: string;
   isTimeEvent: boolean;
+  isLiveEvent: boolean;
 }
 
 export function MonthlyCalendarView({ events: passedEvents, className }: MonthlyCalendarViewProps) {
@@ -29,15 +31,17 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
   // Only use calendar-optimized data loading if no events are passed
   const { data: calendarEvents, isLoading } = useCalendarEvents(currentDate);
   
-  // Prioritize passed events, fallback to loaded calendar events
-  const events = passedEvents ?? (calendarEvents?.filter((event): event is DateBasedEvent | TimeBasedEvent => 
-    event.kind === 31922 || event.kind === 31923
-  ) ?? []);
+  // Prioritize passed events, fallback to loaded calendar events (filtering out RSVPs)
+  const events = passedEvents ?? (calendarEvents?.filter((event) => 
+    event.kind === 31922 || event.kind === 31923 || event.kind === 30311 || event.kind === 30312 || event.kind === 30313
+  ) as (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom)[] ?? []);
 
   // Check if current month has events or if we should show a load more option
   const currentMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
   const hasEventsInCurrentMonth = events.some(event => {
-    const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+    const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+      ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+      : event.tags.find((tag) => tag[0] === "start")?.[1];
     if (!startTime) return false;
 
     let eventDate: Date;
@@ -90,7 +94,9 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
   const eventsByDate = new Map<string, CalendarEvent[]>();
   
   events.forEach((event) => {
-    const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+    const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+      ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+      : event.tags.find((tag) => tag[0] === "start")?.[1];
     if (!startTime) return;
 
     const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
@@ -111,7 +117,7 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
         eventDate = new Date(year, month - 1, day);
       }
     } else {
-      // Time-based event
+      // Time-based event, live event, or room meeting
       let timestamp = parseInt(startTime);
       
       // Handle both seconds and milliseconds timestamps
@@ -139,7 +145,8 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
       event,
       title,
       startTime: formattedTime,
-      isTimeEvent: event.kind === 31923,
+      isTimeEvent: event.kind === 31923 || event.kind === 30311,
+      isLiveEvent: isLiveEvent(event),
     });
   });
 
@@ -270,7 +277,9 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
                     >
                       <div className={cn(
                         "text-xs p-1 rounded truncate transition-colors",
-                        calendarEvent.isTimeEvent
+                        calendarEvent.isLiveEvent
+                          ? "bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200"
+                          : calendarEvent.isTimeEvent
                           ? "bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200"
                           : "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200"
                       )}>
@@ -301,6 +310,10 @@ export function MonthlyCalendarView({ events: passedEvents, className }: Monthly
         {/* Legend and Load More */}
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-100 dark:bg-red-900 rounded"></div>
+              <span>Live events</span>
+            </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-blue-100 dark:bg-blue-900 rounded"></div>
               <span>Time-based events</span>

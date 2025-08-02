@@ -1,8 +1,8 @@
 import Dexie, { Table } from "dexie";
-import type { DateBasedEvent, TimeBasedEvent, EventRSVP } from "./eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, EventRSVP, LiveEvent, RoomMeeting, InteractiveRoom } from "./eventTypes";
 
 class EventDatabase extends Dexie {
-  events!: Table<DateBasedEvent | TimeBasedEvent>;
+  events!: Table<DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom>;
   rsvps!: Table<EventRSVP>;
 
   constructor() {
@@ -17,12 +17,12 @@ class EventDatabase extends Dexie {
 export const db = new EventDatabase();
 
 export async function cacheEvent(
-  event: DateBasedEvent | TimeBasedEvent | EventRSVP
+  event: DateBasedEvent | TimeBasedEvent | EventRSVP | LiveEvent | RoomMeeting | InteractiveRoom
 ) {
   if (event.kind === 31925) {
     await db.rsvps.put(event as EventRSVP);
   } else {
-    await db.events.put(event as DateBasedEvent | TimeBasedEvent);
+    await db.events.put(event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom);
   }
 }
 

@@ -12,7 +12,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Link } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createEventIdentifier } from "@/lib/nip19Utils";
-import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
+import { isLiveEvent, isInPersonEvent, getStreamingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -37,6 +38,8 @@ import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import { MonthlyCalendarView } from "@/components/MonthlyCalendarView";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
 
 export function Home() {
   console.log("Home component rendering");
@@ -68,20 +71,28 @@ export function Home() {
   const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>(
     []
   );
+  const [eventTypeFilter, setEventTypeFilter] = useState<"all" | "in-person" | "live">("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter events based on all criteria including mute list
-  const allFilteredEvents = allEvents
-    ?.filter((event): event is DateBasedEvent | TimeBasedEvent => {
-      if (event.kind !== 31922 && event.kind !== 31923) return false;
+  const calendarEvents = allEvents?.filter((event) => {
+    // Only include calendar event types
+    return event.kind === 31922 || event.kind === 31923 || event.kind === 30311 || event.kind === 30312 || event.kind === 30313;
+  }) as (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom)[] | undefined;
 
+  const allFilteredEvents = calendarEvents
+    ?.filter((event) => {
       // Filter out events from muted pubkeys
       if (!isMuteListLoading && isMuted(event.pubkey)) {
         return false;
       }
 
-      const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
-      const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
+      // LiveEvent (30311), InteractiveRoom (30312), and RoomMeeting (30313) use "starts" tag, others use "start"
+      const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+        ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+        : event.tags.find((tag) => tag[0] === "start")?.[1];
+      const endTime = event.tags.find((tag) => tag[0] === "end")?.[1] || 
+                      event.tags.find((tag) => tag[0] === "ends")?.[1];
       if (!startTime) return false;
 
       let eventStart: number;
@@ -203,7 +214,7 @@ export function Home() {
           return false;
         }
       } else {
-        // For time-based events (kind 31923), convert Unix timestamps to milliseconds
+        // For time-based events (kind 31923), live events (30311), interactive rooms (30312), and room meetings (30313), convert Unix timestamps to milliseconds
         eventStart = parseInt(startTime) * 1000;
         if (endTime) {
           eventEnd = parseInt(endTime) * 1000;
@@ -260,11 +271,24 @@ export function Home() {
         if (!hasMatchingCategory) return false;
       }
 
+      // Filter by event type (in-person vs live)
+      if (eventTypeFilter !== "all") {
+        if (eventTypeFilter === "live" && !isLiveEvent(event)) {
+          return false;
+        }
+        if (eventTypeFilter === "in-person" && !isInPersonEvent(event)) {
+          return false;
+        }
+      }
+
       return true;
     })
     ?.sort((a, b) => {
-      const getEventStartTime = (event: DateBasedEvent | TimeBasedEvent) => {
-        const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+      const getEventStartTime = (event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom) => {
+        // LiveEvent (30311), InteractiveRoom (30312), and RoomMeeting (30313) use "starts" tag, others use "start"
+        const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+          ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+          : event.tags.find((tag) => tag[0] === "start")?.[1];
         if (!startTime) return 0;
 
         if (event.kind === 31922) {
@@ -296,6 +320,7 @@ export function Home() {
             return new Date(year, month - 1, day, 0, 0, 0).getTime();
           }
         } else {
+          // For time-based events (kind 31923), live events (30311), interactive rooms (30312), and room meetings (30313), convert Unix timestamps to milliseconds
           return parseInt(startTime) * 1000;
         }
       };
@@ -313,13 +338,15 @@ export function Home() {
     setKeywordFilter("");
     setDateRange(undefined);
     setSelectedCategories([]);
+    setEventTypeFilter("all");
   };
 
   const hasActiveFilters =
     keywordFilter ||
     dateRange ||
     showPastEvents ||
-    selectedCategories.length > 0;
+    selectedCategories.length > 0 ||
+    eventTypeFilter !== "all";
 
   // Load more functionality for grid view
   const canLoadMore = viewMode === "grid" && allFilteredEvents && displayedEventCount < allFilteredEvents.length;
@@ -350,7 +377,7 @@ export function Home() {
   useEffect(() => {
     console.log("Home component mounted");
     console.log("Events state:", { 
-      allEvents: allEvents.length, 
+      calendarEvents: calendarEvents?.length || 0, 
       allFilteredEvents: allFilteredEvents?.length || 0,
       displayedEvents: filteredEvents?.length || 0,
       displayedEventCount,
@@ -361,20 +388,18 @@ export function Home() {
     });
 
     // Debug: Check for duplicate events
-    if (allEvents.length > 0) {
+    if (calendarEvents && calendarEvents.length > 0) {
       const eventCoordinates = new Map<string, number>();
       const duplicates: string[] = [];
       
-      allEvents.forEach(event => {
-        if (event.kind === 31922 || event.kind === 31923) {
-          const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
-          if (dTag) {
-            const coordinate = `${event.kind}:${event.pubkey}:${dTag}`;
-            const count = eventCoordinates.get(coordinate) || 0;
-            eventCoordinates.set(coordinate, count + 1);
-            if (count > 0) {
-              duplicates.push(coordinate);
-            }
+      calendarEvents.forEach(event => {
+        const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
+        if (dTag) {
+          const coordinate = `${event.kind}:${event.pubkey}:${dTag}`;
+          const count = eventCoordinates.get(coordinate) || 0;
+          eventCoordinates.set(coordinate, count + 1);
+          if (count > 0) {
+            duplicates.push(coordinate);
           }
         }
       });
@@ -386,7 +411,7 @@ export function Home() {
         console.log("✅ No duplicate events detected");
       }
     }
-  }, [allEvents, allFilteredEvents, filteredEvents, displayedEventCount, canLoadMore, isLoading, error, viewMode]);
+  }, [calendarEvents, allFilteredEvents, filteredEvents, displayedEventCount, canLoadMore, isLoading, error, viewMode]);
 
   if (isLoading || isMuteListLoading || isAuthorsLoading) {
     console.log("Loading events...");
@@ -402,7 +427,7 @@ export function Home() {
   }
 
   console.log("Rendering events:", {
-    allEventsLength: allEvents.length,
+    calendarEventsLength: calendarEvents?.length || 0,
     allFilteredEventsLength: allFilteredEvents?.length || 0,
     displayedEventsLength: filteredEvents?.length || 0,
     displayedEventCount,
@@ -617,6 +642,40 @@ export function Home() {
                     </Label>
                   </div>
                 </div>
+
+                {/* Event Type Filter */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Event Type</Label>
+                  <RadioGroup
+                    value={eventTypeFilter}
+                    onValueChange={(value) => setEventTypeFilter(value as "all" | "in-person" | "live")}
+                    className="flex flex-col sm:flex-row gap-3 sm:gap-6"
+                  >
+                    <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-2xl cursor-pointer hover:bg-primary/5 transition-colors">
+                      <RadioGroupItem value="all" id="all" className="text-primary" />
+                      <Label htmlFor="all" className="font-medium cursor-pointer">
+                        🎭 All Events
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-2xl cursor-pointer hover:bg-primary/5 transition-colors">
+                      <RadioGroupItem value="in-person" id="in-person" className="text-primary" />
+                      <Label htmlFor="in-person" className="font-medium cursor-pointer">
+                        📍 In-Person
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-2xl cursor-pointer hover:bg-primary/5 transition-colors">
+                      <RadioGroupItem value="live" id="live" className="text-primary" />
+                      <Label htmlFor="live" className="font-medium cursor-pointer">
+                        🎥 Live Events
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {eventTypeFilter !== "all" && (
+                    <div className="text-sm text-primary bg-primary/10 p-3 rounded-xl">
+                      {eventTypeFilter === "live" ? "🎥 Showing live events only" : "📍 Showing in-person events only"}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </CollapsibleContent>
@@ -636,16 +695,27 @@ export function Home() {
       ) : (
         <>
           <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredEvents?.map((event, index) => {
+            {filteredEvents?.map((event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom, index) => {
               const title =
                 event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
               const description = event.content;
-              const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
+              const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
+                ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+                : event.tags.find((tag) => tag[0] === "start")?.[1];
               const location = event.tags.find(
                 (tag) => tag[0] === "location"
               )?.[1];
               const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
               const eventIdentifier = createEventIdentifier(event);
+              
+              // Check if this is a live event
+              const live = isLiveEvent(event);
+              const inPerson = isInPersonEvent(event);
+              const streamingUrl = getStreamingUrl(event);
+              const liveStatus = event.kind === 30311 ? getLiveEventStatus(event as LiveEvent) : null;
+              
+              // Get platform icon for live events
+              const platformIcon = isLiveEventType(event) ? getPlatformIcon(event) : null;
 
               // Add ref to last element for infinite scroll
               const isLastElement = index === filteredEvents.length - 1;
@@ -664,14 +734,55 @@ export function Home() {
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      
+                      {/* Live Event Badge */}
+                      {live && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge className={cn(
+                            "px-3 py-1 rounded-full text-xs font-semibold shadow-lg",
+                            liveStatus === 'live' 
+                              ? "bg-red-500 text-white animate-pulse" 
+                              : "bg-blue-500 text-white"
+                          )}>
+                            {liveStatus === 'live' ? (
+                              <>
+                                <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span>
+                                LIVE NOW
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-2 h-2 bg-white rounded-full mr-1"></span>
+                                LIVE EVENT
+                              </>
+                            )}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {/* In-Person Badge */}
+                      {inPerson && !live && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge className="px-3 py-1 rounded-full text-xs font-semibold shadow-lg bg-green-500 text-white">
+                            📍 In-Person
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     <CardHeader className="p-4 sm:p-6">
-                      <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
-                        {title}
+                      <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200 flex items-center gap-2">
+                        {platformIcon && (
+                          <span 
+                            className="text-xl flex-shrink-0" 
+                            title={`Live on ${platformIcon.name}`}
+                          >
+                            {platformIcon.icon}
+                          </span>
+                        )}
+                        <span className="flex-1">{title}</span>
                       </CardTitle>
                       {startTime && (
                         <CardDescription className="text-sm font-medium">
-                          <TimezoneDisplay event={event} showLocalTime={false} />
+                          <TimezoneDisplay event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom} showLocalTime={false} />
                         </CardDescription>
                       )}
                     </CardHeader>
@@ -679,7 +790,12 @@ export function Home() {
                       <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
                         {description}
                       </p>
-                      {location && (
+                      {streamingUrl ? (
+                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded-xl border border-blue-200 dark:border-blue-800">
+                          <span className="text-blue-600 dark:text-blue-400">🎥</span>
+                          <span className="font-medium text-blue-800 dark:text-blue-200">Live Stream</span>
+                        </div>
+                      ) : location && (
                         <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
                           <span className="text-primary">📍</span>
                           <span className="font-medium">{location}</span>
@@ -711,7 +827,7 @@ export function Home() {
             <div className="flex justify-center py-4">
               <div className="text-xs text-muted-foreground space-y-2 text-center">
                 <div>Debug Info:</div>
-                <div>Total events loaded: {allEvents.length}</div>
+                <div>Total events loaded: {calendarEvents?.length || 0}</div>
                 <div>After filtering: {allFilteredEvents?.length || 0}</div>
                 <div>Currently displayed: {filteredEvents?.length || 0}</div>
                 <div>Can load more: {String(canLoadMore)}</div>

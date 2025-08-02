@@ -43,3 +43,37 @@ export interface EventRSVP extends BaseEvent {
     ...string[][]
   ];
 }
+
+export interface LiveEvent extends BaseEvent {
+  kind: 30311;
+  tags: [
+    ["d", string],
+    ["title", string],
+    ["starts", string], // Unix timestamp in seconds
+    ...string[][]
+  ];
+}
+
+export interface RoomMeeting extends BaseEvent {
+  kind: 30313;
+  tags: [
+    ["d", string],
+    ["a", string], // Reference to parent room (30312)
+    ["title", string],
+    ["starts", string], // Unix timestamp in seconds
+    ["ends", string], // Unix timestamp in seconds
+    ...string[][]
+  ];
+}
+
+export interface InteractiveRoom extends BaseEvent {
+  kind: 30312;
+  tags: [
+    ["d", string],
+    ["title", string],
+    ["starts", string], // Unix timestamp in seconds
+    ["status", "planned" | "live" | "ended"],
+    ["service", string], // Room URL
+    ...string[][]
+  ];
+}

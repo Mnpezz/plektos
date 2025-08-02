@@ -1,4 +1,4 @@
-import type { DateBasedEvent, TimeBasedEvent } from "./eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting } from "./eventTypes";
 
 function formatDateForICS(dateStr: string, isTimeBasedEvent: boolean): string {
   if (isTimeBasedEvent) {
@@ -25,17 +25,22 @@ function formatDateForICS(dateStr: string, isTimeBasedEvent: boolean): string {
   }
 }
 
-export function generateICS(event: DateBasedEvent | TimeBasedEvent): string {
+export function generateICS(event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting): string {
   const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
-  const startTag = event.tags.find((tag) => tag[0] === "start")?.[1];
-  const endTag = event.tags.find((tag) => tag[0] === "end")?.[1];
+  // LiveEvent (30311) and RoomMeeting (30313) use "starts"/"ends" tags, others use "start"/"end"
+  const startTag = (event.kind === 30311 || event.kind === 30313)
+    ? event.tags.find((tag) => tag[0] === "starts")?.[1]
+    : event.tags.find((tag) => tag[0] === "start")?.[1];
+  const endTag = event.tags.find((tag) => tag[0] === "end")?.[1] || 
+                 event.tags.find((tag) => tag[0] === "ends")?.[1];
   const location = event.tags.find((tag) => tag[0] === "location")?.[1];
   
   if (!startTag) {
     throw new Error("Event must have a start time");
   }
 
-  const isTimeBasedEvent = event.kind === 31923;
+  // Time-based events: 31923 (time-based), 30311 (live events), 30313 (room meetings)
+  const isTimeBasedEvent = event.kind === 31923 || event.kind === 30311 || event.kind === 30313;
   
   // Format dates according to ICS specification
   const dtstart = formatDateForICS(startTag, isTimeBasedEvent);
@@ -73,7 +78,7 @@ export function generateICS(event: DateBasedEvent | TimeBasedEvent): string {
   return ics;
 }
 
-export function downloadICS(event: DateBasedEvent | TimeBasedEvent) {
+export function downloadICS(event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting) {
   const ics = generateICS(event);
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);

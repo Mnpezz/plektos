@@ -28,14 +28,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Edit } from "lucide-react";
-import type { DateBasedEvent, TimeBasedEvent } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting } from "@/lib/eventTypes";
 import {
   getGroupedTimezoneOptions,
   createTimestampInTimezone,
 } from "@/lib/eventTimezone";
 
 interface EditEventProps {
-  event: DateBasedEvent | TimeBasedEvent;
+  event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
   onEventUpdated?: () => void;
 }
 
@@ -324,6 +324,7 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
   }
 
   // Only show edit button for NIP-52 calendar events (31922 and 31923)
+  // Live events (30311) cannot be edited with this component
   if (event.kind !== 31922 && event.kind !== 31923) {
     return null;
   }

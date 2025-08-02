@@ -25,6 +25,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type {
   DateBasedEvent,
   TimeBasedEvent,
+  LiveEvent,
+  RoomMeeting,
   EventRSVP,
 } from "@/lib/eventTypes";
 import { nip19 } from "nostr-tools";
@@ -46,6 +48,9 @@ import {
   getTimezoneAbbreviation,
 } from "@/lib/eventTimezone";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
+import { cn } from "@/lib/utils";
+import { isLiveEvent, getViewingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
+import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -128,7 +133,7 @@ export function EventDetail() {
   const isLoading = isLoadingEvents || isLoadingSingleEvent;
 
   // Decode the event identifier and get target event
-  let targetEvent: DateBasedEvent | TimeBasedEvent | null = null;
+  let targetEvent: DateBasedEvent | TimeBasedEvent | LiveEvent | null = null;
   let eventIdFromIdentifier: string | undefined;
   let decodingError: string | null = null;
 
@@ -144,7 +149,7 @@ export function EventDetail() {
             e.kind === kind &&
             e.pubkey === pubkey &&
             e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
-        ) as DateBasedEvent | TimeBasedEvent | null;
+        ) as DateBasedEvent | TimeBasedEvent | LiveEvent | null;
 
         // If not found in events list, try the single event result
         if (!targetEvent && singleEvent) {
@@ -168,6 +173,7 @@ export function EventDetail() {
         targetEvent = events?.find((e) => e.id === eventIdDecoded) as
           | DateBasedEvent
           | TimeBasedEvent
+          | LiveEvent
           | null;
 
         // If not found in events list, try the single event result
@@ -185,7 +191,7 @@ export function EventDetail() {
     decodingError = "No event identifier provided";
   }
 
-  const event = targetEvent;
+  const event = targetEvent as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
 
   // Filter RSVP events and process attendee data
   const rsvpEvents = (events || [])
@@ -478,8 +484,18 @@ export function EventDetail() {
         <CardHeader className="p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div className="space-y-1 sm:space-y-2">
-              <CardTitle>
-                {event.tags.find((tag) => tag[0] === "title")?.[1]}
+              <CardTitle className="flex items-center gap-2">
+                {isLiveEventType(event) && getPlatformIcon(event) && (
+                  <span 
+                    className="text-2xl flex-shrink-0" 
+                    title={`Live on ${getPlatformIcon(event)?.name}`}
+                  >
+                    {getPlatformIcon(event)?.icon}
+                  </span>
+                )}
+                <span className="flex-1">
+                  {event.tags.find((tag) => tag[0] === "title")?.[1]}
+                </span>
               </CardTitle>
               <EventAuthor pubkey={event.pubkey} />
             </div>
@@ -494,7 +510,7 @@ export function EventDetail() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadICS(event)}
+                  onClick={() => downloadICS(event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting)}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
                 >
                   <Calendar className="h-4 w-4" />
@@ -532,6 +548,77 @@ export function EventDetail() {
               location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""} 
             />
           </div>
+
+          {/* Live Event Section */}
+          {isLiveEvent(event) && (
+            <div>
+              <h3 className="font-semibold flex items-center gap-2 mb-3">
+                🎥 Live Event Details
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge className={cn(
+                    "px-3 py-1 rounded-full text-sm font-semibold",
+                    event.kind === 30311 && getLiveEventStatus(event as LiveEvent) === 'live' 
+                      ? "bg-red-500 text-white animate-pulse" 
+                      : "bg-blue-500 text-white"
+                  )}>
+                    {event.kind === 30311 && getLiveEventStatus(event as LiveEvent) === 'live' ? (
+                      <>
+                        <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span>
+                        LIVE NOW
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 bg-white rounded-full mr-1"></span>
+                        LIVE EVENT
+                      </>
+                    )}
+                  </Badge>
+                  {event.kind === 30311 && (
+                    <Badge variant="outline" className="text-xs">
+                      Status: {getLiveEventStatus(event as LiveEvent)}
+                    </Badge>
+                  )}
+                </div>
+                
+                {getViewingUrl(event) && (
+                  <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                      🎥 Watch Live
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={getViewingUrl(event)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm break-all"
+                      >
+                        {getViewingUrl(event)}
+                      </a>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(getViewingUrl(event)!);
+                          toast.success("Stream URL copied to clipboard!");
+                        }}
+                        className="flex-shrink-0"
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {event.kind === 30311 && (
+                  <div className="text-sm text-muted-foreground">
+                    <p>This is a NIP-53 live event. Join the stream using the URL above or check the event description for more details.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <h3 className="font-semibold flex items-center gap-2">🕒 Date & Time</h3>
@@ -696,7 +783,7 @@ export function EventDetail() {
 
           {isHost && (
             <ReminderPanel
-              event={event}
+              event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting}
               isHost={isHost}
               participants={participants}
             />
@@ -722,7 +809,7 @@ export function EventDetail() {
       </Card>
       {user && user.pubkey === event.pubkey && (
         <div className="mt-4 flex gap-2">
-          <EditEvent event={event} onEventUpdated={handleEventUpdated} />
+          <EditEvent event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting} onEventUpdated={handleEventUpdated} />
           <DeleteEvent
             eventId={event.id}
             eventKind={event.kind}
