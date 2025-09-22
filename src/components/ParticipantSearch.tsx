@@ -66,7 +66,7 @@ export function ParticipantSearch({
   };
 
   // Search for users based on query
-  const { data: searchResults = [], isLoading, error, isFetching, status } = useQuery({
+  const { data: searchResults = [], isLoading, error } = useQuery({
     queryKey: ["participant-search", searchQuery],
     queryFn: async ({ signal }) => {
       if (!searchQuery) {
