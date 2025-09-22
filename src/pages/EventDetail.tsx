@@ -194,12 +194,33 @@ export function EventDetail() {
 
   const event = targetEvent as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
 
+  // Extract event participants from p tags (NIP-52)
+  const eventParticipants = event?.tags
+    .filter((tag) => tag[0] === "p")
+    .map((tag) => ({
+      pubkey: tag[1],
+      relay: tag[2] || undefined,
+      role: tag[3] || "participant",
+    })) || [];
+
+  const price = event?.tags.find((tag) => tag[0] === "price")?.[1];
+  const lightningAddress = event?.tags.find((tag) => tag[0] === "lud16")?.[1];
+  const isPaidEvent = price && lightningAddress;
+  const isHost = user?.pubkey === event?.pubkey;
+  const imageUrl = event?.tags.find((tag) => tag[0] === "image")?.[1];
+  const eventIdentifier = event?.tags.find((tag) => tag[0] === "d")?.[1];
+
   // Filter RSVP events and process attendee data
+  const eventAddress = eventIdentifier ? `${event?.kind}:${event?.pubkey}:${eventIdentifier}` : null;
   const rsvpEvents = (events || [])
     .filter((e): e is EventRSVP => e.kind === 31925)
-    .filter((e) =>
-      e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier)
-    );
+    .filter((e) => {
+      // Match by event ID (e tag) for current version
+      const hasEventId = e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier);
+      // Match by address coordinate (a tag) for all versions of replaceable events
+      const hasAddress = eventAddress && e.tags.some((tag) => tag[0] === "a" && tag[1] === eventAddress);
+      return hasEventId || hasAddress;
+    });
 
   // Get most recent RSVP for each user
   const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
@@ -226,22 +247,6 @@ export function EventDetail() {
   );
 
   const participants = latestRSVPs.map((e) => e.pubkey);
-
-  // Extract event participants from p tags (NIP-52)
-  const eventParticipants = event?.tags
-    .filter((tag) => tag[0] === "p")
-    .map((tag) => ({
-      pubkey: tag[1],
-      relay: tag[2] || undefined,
-      role: tag[3] || "participant",
-    })) || [];
-
-  const price = event?.tags.find((tag) => tag[0] === "price")?.[1];
-  const lightningAddress = event?.tags.find((tag) => tag[0] === "lud16")?.[1];
-  const isPaidEvent = price && lightningAddress;
-  const isHost = user?.pubkey === event?.pubkey;
-  const imageUrl = event?.tags.find((tag) => tag[0] === "image")?.[1];
-  const eventIdentifier = event?.tags.find((tag) => tag[0] === "d")?.[1];
 
   const userRSVP = latestRSVPs.find((e) => e.pubkey === user?.pubkey);
   const currentStatus = userRSVP?.tags.find(
