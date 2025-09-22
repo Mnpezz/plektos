@@ -1,10 +1,18 @@
+import { useState } from "react";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { genUserName } from "@/lib/genUserName";
 import { nip19 } from "nostr-tools";
 import { Link } from "react-router-dom";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface EventParticipant {
   pubkey: string;
@@ -59,6 +67,8 @@ function ParticipantCard({ participant }: { participant: EventParticipant }) {
 }
 
 export function ParticipantDisplay({ participants, className }: ParticipantDisplayProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   if (participants.length === 0) {
     return null;
   }
@@ -83,28 +93,45 @@ export function ParticipantDisplay({ participants, className }: ParticipantDispl
     return aIndex - bIndex;
   });
 
+  const totalParticipants = participants.length;
+
   return (
     <div className={className}>
-      <h3 className="font-semibold mb-3 flex items-center gap-2">👥 Event Participants</h3>
-      <div className="space-y-4">
-        {sortedRoles.map(role => (
-          <div key={role}>
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="secondary" className="text-xs">
-                {role.charAt(0).toUpperCase() + role.slice(1)}s
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                {participantsByRole[role].length} {participantsByRole[role].length === 1 ? 'person' : 'people'}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {participantsByRole[role].map(participant => (
-                <ParticipantCard key={participant.pubkey} participant={participant} />
-              ))}
-            </div>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+            <h3 className="font-semibold flex items-center gap-2">
+              👥 Event Participants ({totalParticipants})
+            </h3>
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-3">
+          <div className="space-y-4">
+            {sortedRoles.map(role => (
+              <div key={role}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {role.charAt(0).toUpperCase() + role.slice(1)}s
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {participantsByRole[role].length} {participantsByRole[role].length === 1 ? 'person' : 'people'}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {participantsByRole[role].map(participant => (
+                    <ParticipantCard key={participant.pubkey} participant={participant} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
