@@ -51,6 +51,7 @@ import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import { cn } from "@/lib/utils";
 import { isLiveEvent, getViewingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
 import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
+import { ParticipantDisplay } from "@/components/ParticipantDisplay";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -225,6 +226,15 @@ export function EventDetail() {
   );
 
   const participants = latestRSVPs.map((e) => e.pubkey);
+
+  // Extract event participants from p tags (NIP-52)
+  const eventParticipants = event?.tags
+    .filter((tag) => tag[0] === "p")
+    .map((tag) => ({
+      pubkey: tag[1],
+      relay: tag[2] || undefined,
+      role: tag[3] || "participant",
+    })) || [];
 
   const price = event?.tags.find((tag) => tag[0] === "price")?.[1];
   const lightningAddress = event?.tags.find((tag) => tag[0] === "lud16")?.[1];
@@ -544,10 +554,14 @@ export function EventDetail() {
 
           <div>
             <h3 className="font-semibold flex items-center gap-2">📍 Location</h3>
-            <LocationDisplay 
-              location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""} 
+            <LocationDisplay
+              location={event.tags.find((tag) => tag[0] === "location")?.[1] || ""}
             />
           </div>
+
+          {eventParticipants.length > 0 && (
+            <ParticipantDisplay participants={eventParticipants} />
+          )}
 
           {/* Live Event Section */}
           {isLiveEvent(event) && (

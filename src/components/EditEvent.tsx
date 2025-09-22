@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { nip19 } from "nostr-tools";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,10 @@ import { LocationSearch } from "@/components/LocationSearch";
 import { ImageUpload } from "@/components/ImageUpload";
 import { CategorySelector } from "@/components/CategorySelector";
 import { PaidTicketForm } from "@/components/PaidTicketForm";
+import { ParticipantManager } from "@/components/ParticipantManager";
+import type { Participant } from "@/components/ParticipantSearch";
 import { EventCategory } from "@/lib/eventCategories";
+import { genUserName } from "@/lib/genUserName";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -74,6 +78,21 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
     const price = event.tags.find((tag) => tag[0] === "price")?.[1];
     const lightningAddress = event.tags.find((tag) => tag[0] === "lud16")?.[1];
     const hasTicketInfo = !!(price && lightningAddress);
+
+    // Extract participants from p tags
+    const participants: Participant[] = event.tags
+      .filter((tag) => tag[0] === "p")
+      .map((tag) => {
+        const pubkey = tag[1];
+        const role = tag[3] || "attendee"; // Default role if not specified
+        const npub = nip19.npubEncode(pubkey);
+        return {
+          pubkey,
+          npub,
+          displayName: genUserName(pubkey), // Will be updated by useAuthor hook if needed
+          role,
+        };
+      });
 
     // Extract timezone (only for time-based events)
     const timezone =
@@ -156,6 +175,7 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
         lightningAddress: lightningAddress || "",
       },
       timezone,
+      participants,
     };
   }, [event]);
 
@@ -280,6 +300,14 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
       if (formData.categories.length > 0) {
         for (const category of formData.categories) {
           tags.push(["t", category]);
+        }
+      }
+
+      // Add participants as p tags (per NIP-52)
+      if (formData.participants.length > 0) {
+        for (const participant of formData.participants) {
+          // Format: ["p", pubkey, optional_relay_url, role]
+          tags.push(["p", participant.pubkey, "", participant.role]);
         }
       }
 
@@ -599,6 +627,13 @@ export function EditEvent({ event, onEventUpdated }: EditEventProps) {
               </Select>
             </div>
           )}
+
+          <ParticipantManager
+            participants={formData.participants}
+            onChange={(participants) =>
+              setFormData((prev) => ({ ...prev, participants }))
+            }
+          />
 
           <PaidTicketForm
             initialTicketInfo={formData.ticketInfo}
