@@ -114,7 +114,7 @@ export function EventDetail() {
     data: events,
     isLoading: isLoadingEvents,
     refetch: refetchEvents,
-  } = useEvents();
+  } = useEvents({ limit: 500, includeRSVPs: true });
   const { data: singleEvent, isLoading: isLoadingSingleEvent } =
     useSingleEvent(eventId);
   const { user } = useCurrentUser();
@@ -645,18 +645,21 @@ export function EventDetail() {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2 flex items-center gap-2">🧑‍🤝‍🧑 Attendees</h3>
-            <div className="space-y-4">
+            <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm sm:text-base">
+              <span className="text-base sm:text-lg">🧑‍🤝‍🧑</span>
+              <span>Attendees</span>
+            </h3>
+            <div className="space-y-3 sm:space-y-4">
               {acceptedRSVPs.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <Badge
                       variant="outline"
-                      className="bg-green-500/10 text-green-500"
+                      className="bg-green-500/10 text-green-500 text-xs"
                     >
                       Going
                     </Badge>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs sm:text-sm text-muted-foreground">
                       {acceptedRSVPs.length}{" "}
                       {acceptedRSVPs.length === 1 ? "person" : "people"}
                     </span>
@@ -666,14 +669,14 @@ export function EventDetail() {
               )}
               {tentativeRSVPs.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <Badge
                       variant="outline"
-                      className="bg-yellow-500/10 text-yellow-500"
+                      className="bg-yellow-500/10 text-yellow-500 text-xs"
                     >
                       Maybe
                     </Badge>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs sm:text-sm text-muted-foreground">
                       {tentativeRSVPs.length}{" "}
                       {tentativeRSVPs.length === 1 ? "person" : "people"}
                     </span>
@@ -683,14 +686,14 @@ export function EventDetail() {
               )}
               {declinedRSVPs.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <Badge
                       variant="outline"
-                      className="bg-red-500/10 text-red-500"
+                      className="bg-red-500/10 text-red-500 text-xs"
                     >
                       Can't Go
                     </Badge>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs sm:text-sm text-muted-foreground">
                       {declinedRSVPs.length}{" "}
                       {declinedRSVPs.length === 1 ? "person" : "people"}
                     </span>

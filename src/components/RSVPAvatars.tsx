@@ -18,15 +18,15 @@ export function RSVPAvatars({ pubkeys, maxVisible = 3 }: RSVPAvatarsProps) {
   const remainingCount = Math.max(0, pubkeys.length - maxVisible);
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex -space-x-2">
+    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+      <div className="flex -space-x-1 sm:-space-x-2">
         {visiblePubkeys.map((pubkey) => (
           <RSVPAvatar key={pubkey} pubkey={pubkey} />
         ))}
       </div>
       {remainingCount > 0 && (
-        <span className="text-sm text-muted-foreground">
-          and {remainingCount} {remainingCount === 1 ? "other" : "others"}
+        <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+          +{remainingCount} {remainingCount === 1 ? "other" : "others"}
         </span>
       )}
     </div>
@@ -42,15 +42,15 @@ function RSVPAvatar({ pubkey }: { pubkey: string }) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Avatar className="h-8 w-8 border-2 border-background">
+          <Avatar className="h-6 w-6 sm:h-8 sm:w-8 border-2 border-background">
             <AvatarImage src={avatarUrl} alt={displayName} />
-            <AvatarFallback>
+            <AvatarFallback className="text-xs">
               {displayName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{displayName}</p>
+          <p className="text-sm">{displayName}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

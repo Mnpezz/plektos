@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/collapsible";
 import { genUserName } from "@/lib/genUserName";
 import { nip19 } from "nostr-tools";
-import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface EventParticipant {
@@ -33,31 +32,28 @@ function ParticipantCard({ participant }: { participant: EventParticipant }) {
 
   return (
     <Card className="p-0">
-      <CardContent className="p-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
+      <CardContent className="p-2 sm:p-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
             <AvatarImage src={metadata?.picture} />
-            <AvatarFallback className="text-sm">
+            <AvatarFallback className="text-xs sm:text-sm">
               {displayName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0">
-            <Link
-              to={`/profile/${npub}`}
-              className="font-medium text-sm truncate hover:underline block"
-              title={displayName}
+            <a
+              href={`https://njump.me/${npub}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-xs sm:text-sm truncate hover:underline block"
+              title={`View ${displayName} on njump.me`}
             >
               {displayName}
-            </Link>
-            {metadata?.about && (
-              <div className="text-xs text-muted-foreground truncate" title={metadata.about}>
-                {metadata.about}
-              </div>
-            )}
+            </a>
           </div>
 
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs flex-shrink-0">
             {participant.role}
           </Badge>
         </div>
@@ -100,25 +96,27 @@ export function ParticipantDisplay({ participants, className }: ParticipantDispl
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-            <h3 className="font-semibold flex items-center gap-2">
-              👥 Event Participants ({totalParticipants})
+            <h3 className="font-semibold flex items-center gap-2 text-sm sm:text-base">
+              <span className="hidden sm:inline">👥</span>
+              <span className="sm:hidden">👥</span>
+              <span className="truncate">Participants ({totalParticipants})</span>
             </h3>
             {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 flex-shrink-0" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 flex-shrink-0" />
             )}
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-3">
-          <div className="space-y-4">
+        <CollapsibleContent className="mt-2 sm:mt-3">
+          <div className="space-y-3 sm:space-y-4">
             {sortedRoles.map(role => (
               <div key={role}>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <Badge variant="secondary" className="text-xs">
                     {role.charAt(0).toUpperCase() + role.slice(1)}s
                   </Badge>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {participantsByRole[role].length} {participantsByRole[role].length === 1 ? 'person' : 'people'}
                   </span>
                 </div>
