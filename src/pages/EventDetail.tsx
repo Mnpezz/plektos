@@ -548,7 +548,7 @@ export function EventDetail() {
         <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-4">
           <div>
             <h3 className="font-semibold flex items-center gap-2">📝 Description</h3>
-            <p className="text-muted-foreground">{event.content}</p>
+            <p className="text-muted-foreground whitespace-pre-wrap break-words">{event.content}</p>
           </div>
 
           <EventCategories
