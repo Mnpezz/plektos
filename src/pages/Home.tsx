@@ -29,7 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CalendarIcon, Search, X, Filter, ChevronDown, Grid3X3, Calendar as CalendarViewIcon } from "lucide-react";
+import { CalendarIcon, Search, X, Filter, ChevronDown, Grid3X3, Calendar as CalendarViewIcon, Map as MapIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
@@ -40,10 +40,13 @@ import { MonthlyCalendarView } from "@/components/MonthlyCalendarView";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
+import { MapView } from "@/components/MapView";
+import { LocationSearch } from "@/components/LocationSearch";
+import { sortEventsByDistance, formatDistance, type Coordinates } from "@/lib/geolocation";
 
 export function Home() {
   console.log("Home component rendering");
-  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "calendar" | "map">("grid");
   
   // Use regular loading for both views - simpler and more reliable
   const { data: allEventsData, isLoading, error } = useEvents({
@@ -73,6 +76,9 @@ export function Home() {
   );
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | "in-person" | "live">("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [locationFilter, setLocationFilter] = useState("");
+  const [locationCoords, setLocationCoords] = useState<Coordinates | null>(null);
+  const [sortByDistance, setSortByDistance] = useState(false);
 
   // Filter events based on all criteria including mute list
   const calendarEvents = allEvents?.filter((event) => {
@@ -282,8 +288,19 @@ export function Home() {
       }
 
       return true;
-    })
-    ?.sort((a, b) => {
+    });
+
+  // Apply sorting - either by distance or by time
+  const sortedEvents = useMemo(() => {
+    if (!allFilteredEvents) return [];
+    
+    if (sortByDistance && locationCoords) {
+      // Sort by distance from selected location
+      return sortEventsByDistance(allFilteredEvents, locationCoords);
+    }
+    
+    // Default: sort by start time
+    return [...allFilteredEvents].sort((a, b) => {
       const getEventStartTime = (event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom) => {
         // LiveEvent (30311), InteractiveRoom (30312), and RoomMeeting (30313) use "starts" tag, others use "start"
         const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
@@ -327,11 +344,12 @@ export function Home() {
 
       return getEventStartTime(a) - getEventStartTime(b);
     });
+  }, [allFilteredEvents, sortByDistance, locationCoords]);
 
   // For grid view, limit the displayed events for pagination
-  const filteredEvents = viewMode === "calendar" 
-    ? allFilteredEvents 
-    : allFilteredEvents?.slice(0, displayedEventCount);
+  const filteredEvents = viewMode === "calendar" || viewMode === "map"
+    ? sortedEvents 
+    : sortedEvents?.slice(0, displayedEventCount);
 
   const clearFilters = () => {
     setShowPastEvents(false);
@@ -339,6 +357,9 @@ export function Home() {
     setDateRange(undefined);
     setSelectedCategories([]);
     setEventTypeFilter("all");
+    setLocationFilter("");
+    setLocationCoords(null);
+    setSortByDistance(false);
   };
 
   const hasActiveFilters =
@@ -346,10 +367,12 @@ export function Home() {
     dateRange ||
     showPastEvents ||
     selectedCategories.length > 0 ||
-    eventTypeFilter !== "all";
+    eventTypeFilter !== "all" ||
+    locationFilter ||
+    sortByDistance;
 
   // Load more functionality for grid view
-  const canLoadMore = viewMode === "grid" && allFilteredEvents && displayedEventCount < allFilteredEvents.length;
+  const canLoadMore = viewMode === "grid" && sortedEvents && displayedEventCount < sortedEvents.length;
   
   const loadMoreEvents = () => {
     setDisplayedEventCount(prev => prev + 50);
@@ -453,7 +476,7 @@ export function Home() {
             type="single"
             value={viewMode}
             onValueChange={(value) => {
-              if (value) setViewMode(value as "grid" | "calendar");
+              if (value) setViewMode(value as "grid" | "calendar" | "map");
             }}
             className="justify-start sm:justify-end bg-muted/50 rounded-2xl p-1"
           >
@@ -472,6 +495,14 @@ export function Home() {
             >
               <CalendarViewIcon className="h-4 w-4" />
               <span className="hidden sm:inline font-medium">Calendar</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem 
+              value="map" 
+              aria-label="Map view" 
+              className="gap-2 rounded-xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground transition-all duration-200"
+            >
+              <MapIcon className="h-4 w-4" />
+              <span className="hidden sm:inline font-medium">Map</span>
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -544,6 +575,42 @@ export function Home() {
                   <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-xl">
                     💡 Search across event titles, descriptions, locations, and organizer names
                   </div>
+                </div>
+
+                {/* Location Filter */}
+                <div className="flex-1 space-y-3">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <MapIcon className="h-4 w-4 text-primary" />
+                    Filter by Location
+                  </Label>
+                  <LocationSearch
+                    value={locationFilter}
+                    onChange={setLocationFilter}
+                    onLocationSelect={(location) => {
+                      setLocationCoords({ lat: location.lat, lng: location.lng });
+                      setSortByDistance(true);
+                    }}
+                    className="w-full"
+                  />
+                  {locationCoords && sortByDistance && (
+                    <div className="flex items-center justify-between bg-primary/10 p-3 rounded-xl">
+                      <div className="text-sm text-primary">
+                        📍 Sorting by distance from {locationFilter.split(',')[0]}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setLocationFilter("");
+                          setLocationCoords(null);
+                          setSortByDistance(false);
+                        }}
+                        className="h-7 px-2 rounded-xl hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Category Filter */}
@@ -690,12 +757,14 @@ export function Home() {
             <p className="text-muted-foreground">Try adjusting your filters or check back later for new events!</p>
           </div>
         </div>
+      ) : viewMode === "map" ? (
+        <MapView events={filteredEvents || []} className="mb-6" />
       ) : viewMode === "calendar" ? (
         <MonthlyCalendarView events={filteredEvents || []} />
       ) : (
         <>
           <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredEvents?.map((event: DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom, index) => {
+            {filteredEvents?.map((event: (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom) & { distance?: number }, index) => {
               const title =
                 event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
               const description = event.content;
@@ -799,6 +868,11 @@ export function Home() {
                         <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
                           <span className="text-primary">📍</span>
                           <span className="font-medium">{location}</span>
+                          {sortByDistance && event.distance !== undefined && (
+                            <Badge variant="secondary" className="ml-auto">
+                              {formatDistance(event.distance)} away
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -817,7 +891,7 @@ export function Home() {
                 variant="outline"
                 className="px-8 py-3 rounded-2xl border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 font-medium"
               >
-                🎉 Load More Events ({allFilteredEvents!.length - displayedEventCount} remaining)
+                🎉 Load More Events ({sortedEvents!.length - displayedEventCount} remaining)
               </Button>
             </div>
           )}
@@ -828,7 +902,7 @@ export function Home() {
               <div className="text-xs text-muted-foreground space-y-2 text-center">
                 <div>Debug Info:</div>
                 <div>Total events loaded: {calendarEvents?.length || 0}</div>
-                <div>After filtering: {allFilteredEvents?.length || 0}</div>
+                <div>After filtering: {sortedEvents?.length || 0}</div>
                 <div>Currently displayed: {filteredEvents?.length || 0}</div>
                 <div>Can load more: {String(canLoadMore)}</div>
                 {canLoadMore && (
