@@ -173,15 +173,36 @@ export function VerifyTicket() {
       if (!selectedEventId || !nostr || !user?.pubkey) return;
 
       try {
+        console.log('🔍 Loading event data for:', selectedEventId, 'user pubkey:', user.pubkey);
         
         // Load ticket sales (zap receipts where current user is the recipient)
-        const ticketSales = await nostr.query([
-          {
-            kinds: [9735], // Zap receipts
-            "#p": [user.pubkey], // Where current user is the recipient
-            limit: 100
-          }
-        ]);
+        console.log('🔍 Querying for ticket sales with filter:', {
+          kinds: [9735],
+          "#p": [user.pubkey],
+          limit: 100
+        });
+        
+        let ticketSales;
+        try {
+          ticketSales = await nostr.query([
+            {
+              kinds: [9735], // Zap receipts
+              "#p": [user.pubkey], // Where current user is the recipient
+              limit: 100
+            }
+          ], { signal: AbortSignal.timeout(5000) }); // 5 second timeout
+        } catch (error) {
+          console.error('❌ Error querying ticket sales:', error);
+          ticketSales = []; // Fallback to empty array
+        }
+        
+        console.log('🔍 Raw ticket sales query result:', {
+          count: ticketSales.length,
+          sales: ticketSales.map((sale: { id: string; tags: string[][] }) => ({
+            id: sale.id,
+            tags: sale.tags
+          }))
+        });
 
         // Load check-ins (entry events for this event)
         const checkIns = await nostr.query([
@@ -191,6 +212,17 @@ export function VerifyTicket() {
             limit: 100
           }
         ]);
+
+        console.log('🔍 Debugging ticket sales:', {
+          selectedEventId,
+          totalTicketSales: ticketSales.length,
+          ticketSales: ticketSales.map((sale: { tags: string[][]; id: string }) => ({
+            id: sale.id,
+            eventId: sale.tags.find((tag: string[]) => tag[0] === "e")?.[1],
+            preimage: sale.tags.find((tag: string[]) => tag[0] === "preimage")?.[1],
+            allTags: sale.tags
+          }))
+        });
 
         // Filter ticket sales to only those for the selected event
         // AND exclude our system-created zap receipts (they have "manual_payment_confirmed" preimage)
@@ -204,6 +236,16 @@ export function VerifyTicket() {
           if (preimage === "manual_payment_confirmed") return false;
           
           return true;
+        });
+
+        console.log('🔍 Filtered ticket sales:', {
+          selectedEventId,
+          eventTicketSales: eventTicketSales.length,
+          filteredSales: eventTicketSales.map((sale: { tags: string[][]; id: string }) => ({
+            id: sale.id,
+            eventId: sale.tags.find((tag: string[]) => tag[0] === "e")?.[1],
+            preimage: sale.tags.find((tag: string[]) => tag[0] === "preimage")?.[1]
+          }))
         });
 
         setEventTicketSales(eventTicketSales);
