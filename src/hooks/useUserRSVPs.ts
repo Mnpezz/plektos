@@ -164,17 +164,25 @@ export function useUserRSVPs() {
   const processedQuery = useQuery({
     queryKey: ["processedUserTickets", rsvps, rsvpEvents, zapReceipts, ticketEvents],
     queryFn: async (): Promise<{ upcoming: (UserRSVPWithEvent | UserTicketWithEvent)[], past: (UserRSVPWithEvent | UserTicketWithEvent)[] }> => {
+      console.log('🔍 Processing user tickets/RSVPs:', {
+        rsvps: rsvps.length,
+        rsvpEvents: rsvpEvents.length,
+        zapReceipts: zapReceipts.length,
+        ticketEvents: ticketEvents.length
+      });
 
       const processedRSVPs: UserRSVPWithEvent[] = [];
       const processedTickets: UserTicketWithEvent[] = [];
       const now = new Date();
 
       // Process RSVPs
-      if (rsvps.length && rsvpEvents.length) {
-      // First, deduplicate RSVPs to get only the latest RSVP for each event
-      const eventToLatestRSVP = new Map<string, EventRSVP>();
+      if (rsvps.length) {
+        if (rsvpEvents.length) {
+          console.log('📝 Processing RSVPs:', rsvps.length, 'events:', rsvpEvents.length);
+          // First, deduplicate RSVPs to get only the latest RSVP for each event
+          const eventToLatestRSVP = new Map<string, EventRSVP>();
 
-      for (const rsvp of rsvps) {
+        for (const rsvp of rsvps) {
         const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
         const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
 
@@ -211,6 +219,13 @@ export function useUserRSVPs() {
         const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
           let startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
           
+          console.log('🔍 Event start time debug:', {
+            eventTitle: title,
+            eventKind: event.kind,
+            startTime,
+            allTags: event.tags
+          });
+          
           if (!startTime) {
             // For live events, try alternative time tags
             const alternativeStartTime = event.tags.find((tag) => 
@@ -229,12 +244,52 @@ export function useUserRSVPs() {
 
         let eventDate: Date;
 
-        if (event.kind === 31922) {
-          // Date-only events: startTime is YYYY-MM-DD format
-          eventDate = new Date(startTime + "T00:00:00Z");
-        } else {
-          // Time-based events (31923) and live events (30311, 30312, 30313): startTime is Unix timestamp
-          eventDate = new Date(parseInt(startTime) * 1000);
+        try {
+          // Determine the date format based on the startTime value, not just the event kind
+          if (startTime.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Date-only format: YYYY-MM-DD
+            eventDate = new Date(startTime + "T00:00:00Z");
+          } else if (startTime.match(/^\d{10}$/)) {
+            // Unix timestamp (10 digits)
+            eventDate = new Date(parseInt(startTime) * 1000);
+          } else if (startTime.match(/^\d{13}$/)) {
+            // Unix timestamp in milliseconds (13 digits)
+            eventDate = new Date(parseInt(startTime));
+          } else if (startTime === "0") {
+            // For live events without start time, treat them as past by default
+            // Set the event date to the event creation time (which is in the past)
+            const eventCreatedAt = event.created_at * 1000; // Convert to milliseconds
+            eventDate = new Date(eventCreatedAt);
+          } else {
+            console.error('❌ Unknown date format:', { startTime, eventKind: event.kind, eventTitle: title });
+            // Skip this event
+            continue;
+          }
+
+          // Check if the date is valid
+          if (isNaN(eventDate.getTime())) {
+            console.error('❌ Invalid date created:', { startTime, eventKind: event.kind, eventTitle: title });
+            // Skip this event
+            continue;
+          }
+
+          const now = new Date();
+          const isUpcoming = eventDate >= now;
+          
+          console.log('📅 RSVP date calculation:', {
+            eventTitle: title,
+            eventKind: event.kind,
+            startTime,
+            eventDate: eventDate.toISOString(),
+            now: now.toISOString(),
+            isUpcoming,
+            timeDiff: eventDate.getTime() - now.getTime(),
+            timeDiffHours: (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60)
+          });
+        } catch (error) {
+          console.error('❌ Error calculating date:', { error, startTime, eventKind: event.kind, eventTitle: title });
+          // Skip this event
+          continue;
         }
 
 
@@ -246,7 +301,12 @@ export function useUserRSVPs() {
           eventDate,
           eventStartTime: startTime,
         });
-      }
+        }
+        } else {
+          console.log('⏳ Found RSVPs but events still loading:', rsvps.length, 'RSVPs,', rsvpEvents.length, 'events');
+          console.log('RSVP event IDs:', rsvps.map(r => r.tags.find(t => t[0] === 'e')?.[1]).filter(Boolean));
+          console.log('Available event IDs:', rsvpEvents.map(e => e.id));
+        }
       }
 
       // Process purchased tickets (zap receipts) - show all individually with sequence numbers
@@ -342,6 +402,11 @@ export function useUserRSVPs() {
 
             // Combine RSVPs and tickets, then split into upcoming and past events
             const allItems = [...processedRSVPs, ...processedTickets];
+            console.log('📊 Final results:', {
+              processedRSVPs: processedRSVPs.length,
+              processedTickets: processedTickets.length,
+              totalItems: allItems.length
+            });
 
             const upcoming = allItems
         .filter(item => item.eventDate >= now)
@@ -351,10 +416,11 @@ export function useUserRSVPs() {
         .filter(item => item.eventDate < now)
         .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
 
+            console.log('📅 Final counts:', { upcoming: upcoming.length, past: past.length });
 
       return { upcoming, past };
     },
-    enabled: (!!rsvps.length && !!rsvpEvents.length) || (!!zapReceipts.length && !!ticketEvents.length),
+    enabled: !!rsvps.length || !!zapReceipts.length,
     staleTime: 30000,
   });
 
