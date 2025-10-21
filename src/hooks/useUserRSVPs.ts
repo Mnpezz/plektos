@@ -162,14 +162,6 @@ export function useUserRSVPs() {
   const processedQuery = useQuery({
     queryKey: ["processedUserTickets", rsvps, rsvpEvents, zapReceipts, ticketEvents],
     queryFn: async (): Promise<{ upcoming: (UserRSVPWithEvent | UserTicketWithEvent)[], past: (UserRSVPWithEvent | UserTicketWithEvent)[] }> => {
-      console.log("🔍 Processing user tickets/RSVPs:", {
-        rsvpsCount: rsvps.length,
-        rsvpEventsCount: rsvpEvents.length,
-        zapReceiptsCount: zapReceipts.length,
-        ticketEventsCount: ticketEvents.length,
-        rsvps: rsvps.map(r => ({ id: r.id, tags: r.tags, content: r.content })),
-        rsvpEvents: rsvpEvents.map(e => ({ id: e.id, kind: e.kind, title: e.tags.find(t => t[0] === 'title')?.[1] }))
-      });
       
       const processedRSVPs: UserRSVPWithEvent[] = [];
       const processedTickets: UserTicketWithEvent[] = [];
@@ -200,20 +192,11 @@ export function useUserRSVPs() {
           const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
           const status = rsvp.tags.find((tag) => tag[0] === "status")?.[1] || "accepted";
 
-          console.log("🔍 Processing RSVP:", {
-            rsvpId: rsvp.id,
-            eventId,
-            addressTag,
-            status,
-            rsvpTags: rsvp.tags
-          });
-
           // Try to find event by ID first, then by address coordinate
           let event = eventId ? rsvpEvents.find((e) => e.id === eventId) : undefined;
 
           if (!event && addressTag) {
             const [kind, pubkey, identifier] = addressTag.split(':');
-            console.log("🔍 Looking for event by address:", { kind, pubkey, identifier });
             event = rsvpEvents.find((e) =>
               e.kind === parseInt(kind) &&
               e.pubkey === pubkey &&
@@ -221,24 +204,12 @@ export function useUserRSVPs() {
             );
           }
 
-          console.log("🔍 Found event:", event ? { id: event.id, kind: event.kind, title: event.tags.find(t => t[0] === 'title')?.[1] } : "NOT FOUND");
-
           if (!event) continue;
 
           const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
           let startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
           
-          console.log("🔍 Processing event date:", {
-            title,
-            startTime,
-            eventKind: event.kind,
-            eventId: event.id,
-            allTags: event.tags
-          });
-
           if (!startTime) {
-            console.log("🔍 No start time found, checking for alternative time tags...");
-            
             // For live events, try alternative time tags
             const alternativeStartTime = event.tags.find((tag) => 
               tag[0] === "start_tzid" || 
@@ -247,11 +218,9 @@ export function useUserRSVPs() {
             )?.[1];
             
             if (alternativeStartTime) {
-              console.log("🔍 Found alternative start time:", alternativeStartTime);
               startTime = alternativeStartTime;
             } else {
               // For live events without start time, treat as ongoing (show in upcoming)
-              console.log("🔍 No start time found, treating as ongoing live event");
               startTime = "0"; // Use epoch time to ensure it's treated as upcoming
             }
           }
@@ -266,12 +235,6 @@ export function useUserRSVPs() {
             eventDate = new Date(parseInt(startTime) * 1000);
           }
 
-          console.log("🔍 Calculated event date:", {
-            title,
-            eventDate: eventDate.toISOString(),
-            now: new Date().toISOString(),
-            isUpcoming: eventDate >= new Date()
-          });
 
           processedRSVPs.push({
             rsvp,
@@ -346,21 +309,6 @@ export function useUserRSVPs() {
               .filter(item => item.eventDate < now)
               .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
 
-            console.log("🔍 Final results:", {
-              totalItems: allItems.length,
-              upcomingCount: upcoming.length,
-              pastCount: past.length,
-              upcoming: upcoming.map(item => ({ 
-                title: item.eventTitle, 
-                date: item.eventDate.toISOString(),
-                isTicket: 'isTicket' in item ? item.isTicket : false
-              })),
-              past: past.map(item => ({ 
-                title: item.eventTitle, 
-                date: item.eventDate.toISOString(),
-                isTicket: 'isTicket' in item ? item.isTicket : false
-              }))
-            });
 
             return { upcoming, past };
     },
