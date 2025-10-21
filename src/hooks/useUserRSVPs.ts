@@ -27,6 +27,8 @@ interface UserTicketWithEvent {
   eventDate: Date;
   eventStartTime?: string;
   isTicket: boolean; // true for purchased tickets, false for RSVPs
+  sequenceNumber?: number; // 1, 2, 3, etc. for this event
+  totalTickets?: number; // Total tickets purchased for this event
 }
 
 export type { UserRSVPWithEvent, UserTicketWithEvent };
@@ -51,13 +53,13 @@ export function useUserRSVPs() {
     staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Fetch user's purchased tickets (zap receipts where user is the recipient)
+  // Fetch user's purchased tickets (zap receipts where user is the sender/author)
   const { data: zapReceipts = [], isLoading: isLoadingZapReceipts } = useQuery({
     queryKey: ["userZapReceipts", user?.pubkey],
     queryFn: async ({ signal }) => {
       if (!user?.pubkey) return [];
       const events = await nostr.query(
-        [{ kinds: [9735], "#p": [user.pubkey] }],
+        [{ kinds: [9735], authors: [user.pubkey] }],
         { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
       );
       return events;
@@ -162,51 +164,51 @@ export function useUserRSVPs() {
   const processedQuery = useQuery({
     queryKey: ["processedUserTickets", rsvps, rsvpEvents, zapReceipts, ticketEvents],
     queryFn: async (): Promise<{ upcoming: (UserRSVPWithEvent | UserTicketWithEvent)[], past: (UserRSVPWithEvent | UserTicketWithEvent)[] }> => {
-      
+
       const processedRSVPs: UserRSVPWithEvent[] = [];
       const processedTickets: UserTicketWithEvent[] = [];
       const now = new Date();
 
       // Process RSVPs
       if (rsvps.length && rsvpEvents.length) {
-        // First, deduplicate RSVPs to get only the latest RSVP for each event
-        const eventToLatestRSVP = new Map<string, EventRSVP>();
+      // First, deduplicate RSVPs to get only the latest RSVP for each event
+      const eventToLatestRSVP = new Map<string, EventRSVP>();
 
-        for (const rsvp of rsvps) {
-          const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
-          const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
+      for (const rsvp of rsvps) {
+        const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
+        const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
 
-          // Create a unique key for this event (prefer address coordinate over event ID)
-          const eventKey = addressTag || eventId;
-          if (!eventKey) continue;
+        // Create a unique key for this event (prefer address coordinate over event ID)
+        const eventKey = addressTag || eventId;
+        if (!eventKey) continue;
 
-          const existing = eventToLatestRSVP.get(eventKey);
-          if (!existing || rsvp.created_at > existing.created_at) {
-            eventToLatestRSVP.set(eventKey, rsvp);
-          }
+        const existing = eventToLatestRSVP.get(eventKey);
+        if (!existing || rsvp.created_at > existing.created_at) {
+          eventToLatestRSVP.set(eventKey, rsvp);
+        }
+      }
+
+      // Now process only the latest RSVP for each event
+      for (const rsvp of eventToLatestRSVP.values()) {
+        const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
+        const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
+        const status = rsvp.tags.find((tag) => tag[0] === "status")?.[1] || "accepted";
+
+        // Try to find event by ID first, then by address coordinate
+        let event = eventId ? rsvpEvents.find((e) => e.id === eventId) : undefined;
+
+        if (!event && addressTag) {
+          const [kind, pubkey, identifier] = addressTag.split(':');
+          event = rsvpEvents.find((e) =>
+            e.kind === parseInt(kind) &&
+            e.pubkey === pubkey &&
+            e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
+          );
         }
 
-        // Now process only the latest RSVP for each event
-        for (const rsvp of eventToLatestRSVP.values()) {
-          const eventId = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
-          const addressTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
-          const status = rsvp.tags.find((tag) => tag[0] === "status")?.[1] || "accepted";
+        if (!event) continue;
 
-          // Try to find event by ID first, then by address coordinate
-          let event = eventId ? rsvpEvents.find((e) => e.id === eventId) : undefined;
-
-          if (!event && addressTag) {
-            const [kind, pubkey, identifier] = addressTag.split(':');
-            event = rsvpEvents.find((e) =>
-              e.kind === parseInt(kind) &&
-              e.pubkey === pubkey &&
-              e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
-            );
-          }
-
-          if (!event) continue;
-
-          const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
+        const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
           let startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
           
           if (!startTime) {
@@ -225,30 +227,35 @@ export function useUserRSVPs() {
             }
           }
 
-          let eventDate: Date;
+        let eventDate: Date;
 
-          if (event.kind === 31922) {
-            // Date-only events: startTime is YYYY-MM-DD format
-            eventDate = new Date(startTime + "T00:00:00Z");
-          } else {
-            // Time-based events (31923) and live events (30311, 30312, 30313): startTime is Unix timestamp
-            eventDate = new Date(parseInt(startTime) * 1000);
-          }
-
-
-          processedRSVPs.push({
-            rsvp,
-            event,
-            status,
-            eventTitle: title,
-            eventDate,
-            eventStartTime: startTime,
-          });
+        if (event.kind === 31922) {
+          // Date-only events: startTime is YYYY-MM-DD format
+          eventDate = new Date(startTime + "T00:00:00Z");
+        } else {
+          // Time-based events (31923) and live events (30311, 30312, 30313): startTime is Unix timestamp
+          eventDate = new Date(parseInt(startTime) * 1000);
         }
+
+
+        processedRSVPs.push({
+          rsvp,
+          event,
+          status,
+          eventTitle: title,
+          eventDate,
+          eventStartTime: startTime,
+        });
+      }
       }
 
-      // Process purchased tickets (zap receipts)
+      // Process purchased tickets (zap receipts) - show all individually with sequence numbers
       if (zapReceipts.length && ticketEvents.length) {
+        console.log('🎫 Processing tickets - zapReceipts:', zapReceipts.length, 'ticketEvents:', ticketEvents.length);
+        
+        // Group tickets by event ID to calculate sequence numbers
+        const ticketsByEvent = new Map<string, unknown[]>();
+
         for (const receipt of zapReceipts) {
           const eventId = receipt.tags.find((tag) => tag[0] === "e")?.[1];
           if (!eventId) continue;
@@ -256,20 +263,19 @@ export function useUserRSVPs() {
           const event = ticketEvents.find((e) => e.id === eventId);
           if (!event) continue;
 
-          // Parse zap request to get amount
-          const descriptionTag = receipt.tags.find((tag) => tag[0] === "description")?.[1];
-          let amount = 0;
-          if (descriptionTag) {
-            try {
-              const zapRequest = JSON.parse(descriptionTag);
-              const amountTag = zapRequest.tags?.find((tag: string[]) => tag[0] === "amount");
-              if (amountTag) {
-                amount = Math.floor(parseInt(amountTag[1]) / 1000); // Convert from millisats to sats
-              }
-            } catch (error) {
-              console.error("Error parsing zap request:", error);
-            }
+          if (!ticketsByEvent.has(eventId)) {
+            ticketsByEvent.set(eventId, []);
           }
+
+          ticketsByEvent.get(eventId)!.push(receipt);
+        }
+
+        console.log('🎫 Grouped tickets by event:', ticketsByEvent.size);
+        
+        // Process each event's tickets individually with sequence numbers
+        for (const [eventId, receipts] of ticketsByEvent) {
+          const event = ticketEvents.find((e) => e.id === eventId);
+          if (!event) continue;
 
           const title = event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled";
           const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
@@ -286,14 +292,50 @@ export function useUserRSVPs() {
             eventDate = new Date(parseInt(startTime) * 1000);
           }
 
-          processedTickets.push({
-            zapReceipt: receipt,
-            event,
-            amount,
-            eventTitle: title,
-            eventDate,
-            eventStartTime: startTime,
-            isTicket: true,
+          // Sort receipts by creation time (oldest first for consistent numbering)
+          const sortedReceipts = receipts.sort((a, b) => {
+            const aReceipt = a as { created_at: number };
+            const bReceipt = b as { created_at: number };
+            return aReceipt.created_at - bReceipt.created_at;
+          });
+
+          // Create individual ticket entries with sequence numbers
+          sortedReceipts.forEach((receipt, index) => {
+            const receiptData = receipt as {
+              id: string;
+              kind: number;
+              pubkey: string;
+              created_at: number;
+              content: string;
+              tags: string[][];
+            };
+
+            // Parse zap request to get amount
+            const descriptionTag = receiptData.tags.find((tag) => tag[0] === "description")?.[1];
+            let amount = 0;
+            if (descriptionTag) {
+              try {
+                const zapRequest = JSON.parse(descriptionTag);
+                const amountTag = zapRequest.tags?.find((tag: string[]) => tag[0] === "amount");
+                if (amountTag) {
+                  amount = Math.floor(parseInt(amountTag[1]) / 1000); // Convert from millisats to sats
+                }
+              } catch (error) {
+                console.error("Error parsing zap request:", error);
+              }
+            }
+
+            processedTickets.push({
+              zapReceipt: receiptData,
+              event,
+              amount,
+              eventTitle: title,
+              eventDate,
+              eventStartTime: startTime,
+              isTicket: true,
+              sequenceNumber: index + 1, // 1, 2, 3, etc.
+              totalTickets: sortedReceipts.length, // Total tickets for this event
+            });
           });
         }
       }
@@ -302,15 +344,15 @@ export function useUserRSVPs() {
             const allItems = [...processedRSVPs, ...processedTickets];
 
             const upcoming = allItems
-              .filter(item => item.eventDate >= now)
-              .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
+        .filter(item => item.eventDate >= now)
+        .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
 
             const past = allItems
-              .filter(item => item.eventDate < now)
-              .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
+        .filter(item => item.eventDate < now)
+        .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
 
 
-            return { upcoming, past };
+      return { upcoming, past };
     },
     enabled: (!!rsvps.length && !!rsvpEvents.length) || (!!zapReceipts.length && !!ticketEvents.length),
     staleTime: 30000,
