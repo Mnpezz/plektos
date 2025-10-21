@@ -31,7 +31,7 @@ export function VerifyTicket() {
   const { mutate: publishEvent } = useNostrPublish();
 
   // Function to manually check in an attendee
-  const handleManualCheckIn = async (buyerPubkey: string, eventId: string) => {
+  const handleManualCheckIn = async (buyerPubkey: string, eventId: string, receiptId?: string) => {
     if (!user?.signer) {
       toast.error("Please log in to check in attendees");
       return;
@@ -46,6 +46,7 @@ export function VerifyTicket() {
           ["e", eventId], // Event ID
           ["p", buyerPubkey], // Attendee pubkey
           ["timestamp", Math.floor(Date.now() / 1000).toString()], // Check-in timestamp
+          ...(receiptId ? [["receipt", receiptId]] : []), // Specific receipt ID if provided
         ],
       };
 
@@ -96,7 +97,6 @@ export function VerifyTicket() {
   useEffect(() => {
     const checkEventHostStatus = async () => {
       try {
-        console.log('🔍 Checking if user is event host...');
         setIsCheckingEventHost(true);
         
         // Check if user is available
@@ -173,14 +173,7 @@ export function VerifyTicket() {
       if (!selectedEventId || !nostr || !user?.pubkey) return;
 
       try {
-        console.log('🔍 Loading event data for:', selectedEventId, 'user pubkey:', user.pubkey);
-        
-        // Load ticket sales (zap receipts where current user is the recipient)
-        console.log('🔍 Querying for ticket sales with filter:', {
-          kinds: [9735],
-          "#p": [user.pubkey],
-          limit: 100
-        });
+    // Load ticket sales (zap receipts where current user is the recipient)
         
         let ticketSales;
         try {
@@ -192,17 +185,9 @@ export function VerifyTicket() {
             }
           ], { signal: AbortSignal.timeout(5000) }); // 5 second timeout
         } catch (error) {
-          console.error('❌ Error querying ticket sales:', error);
+          console.error('Error querying ticket sales:', error);
           ticketSales = []; // Fallback to empty array
         }
-        
-        console.log('🔍 Raw ticket sales query result:', {
-          count: ticketSales.length,
-          sales: ticketSales.map((sale: { id: string; tags: string[][] }) => ({
-            id: sale.id,
-            tags: sale.tags
-          }))
-        });
 
         // Load check-ins (entry events for this event)
         const checkIns = await nostr.query([
@@ -213,16 +198,6 @@ export function VerifyTicket() {
           }
         ]);
 
-        console.log('🔍 Debugging ticket sales:', {
-          selectedEventId,
-          totalTicketSales: ticketSales.length,
-          ticketSales: ticketSales.map((sale: { tags: string[][]; id: string }) => ({
-            id: sale.id,
-            eventId: sale.tags.find((tag: string[]) => tag[0] === "e")?.[1],
-            preimage: sale.tags.find((tag: string[]) => tag[0] === "preimage")?.[1],
-            allTags: sale.tags
-          }))
-        });
 
         // Filter ticket sales to only those for the selected event
         // AND exclude our system-created zap receipts (they have "manual_payment_confirmed" preimage)
@@ -238,15 +213,6 @@ export function VerifyTicket() {
           return true;
         });
 
-        console.log('🔍 Filtered ticket sales:', {
-          selectedEventId,
-          eventTicketSales: eventTicketSales.length,
-          filteredSales: eventTicketSales.map((sale: { tags: string[][]; id: string }) => ({
-            id: sale.id,
-            eventId: sale.tags.find((tag: string[]) => tag[0] === "e")?.[1],
-            preimage: sale.tags.find((tag: string[]) => tag[0] === "preimage")?.[1]
-          }))
-        });
 
         setEventTicketSales(eventTicketSales);
         setEventCheckIns(checkIns);
@@ -447,11 +413,7 @@ export function VerifyTicket() {
 
   useEffect(() => {
     if (ticketData && !isLoading) {
-      console.log('🔍 Verifying ticket:', {
-        ticketData,
-        zapReceipt,
-        isLoading
-      });
+      // Verify ticket data
       if (zapReceipt) {
         console.log('✅ Ticket verified successfully');
         setVerificationStatus('valid');
@@ -462,8 +424,8 @@ export function VerifyTicket() {
     }
   }, [ticketData, zapReceipt, isLoading]);
 
-        // Always show the ticket verification interface
-        if (!ticketData) {
+  // Always show the ticket verification interface
+  if (!ticketData) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
@@ -639,7 +601,7 @@ export function VerifyTicket() {
                     {/* Ticket Sales Summary */}
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-amber-800 mb-3">
-                        🎫 Ticket Sales ({eventTicketSales.length})
+                        🎫 Ticket Management ({eventTicketSales.length} tickets)
                       </h3>
                       {eventTicketSales.length > 0 ? (
                         <div className="space-y-2">
@@ -678,6 +640,25 @@ export function VerifyTicket() {
                               }
                             }
 
+                            // Check if this specific ticket has been checked in
+                            const isCheckedIn = eventCheckIns.some((checkIn: { tags: string[][] }) => {
+                              const checkInBuyer = checkIn.tags.find((tag) => tag[0] === "p")?.[1];
+                              const checkInEvent = checkIn.tags.find((tag) => tag[0] === "e")?.[1];
+                              const checkInReceipt = checkIn.tags.find((tag) => tag[0] === "receipt")?.[1];
+                              
+                              // Match by buyer and event first
+                              if (checkInBuyer === buyerPubkey && checkInEvent === selectedEventId) {
+                                // If there's a receipt tag, match by receipt ID (new check-ins)
+                                if (checkInReceipt) {
+                                  return checkInReceipt === saleData.id;
+                                } else {
+                                  // If no receipt tag, this is an old check-in - match by buyer and event only
+                                  return true;
+                                }
+                              }
+                              return false;
+                            });
+
                             return (
                                       <div key={index} className="bg-white border border-amber-300 rounded-lg p-3">
                                         <div className="flex justify-between items-center">
@@ -696,13 +677,19 @@ export function VerifyTicket() {
                                             <Badge variant="outline" className="bg-amber-100 text-amber-800">
                                               💰 {amount} sats
                                             </Badge>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => handleManualCheckIn(buyerPubkey, selectedEventId!)}
-                                              className="bg-green-600 hover:bg-green-700 text-white"
-                                            >
-                                              ✓ Check In
-                                            </Button>
+                                            {isCheckedIn ? (
+                                              <Badge variant="outline" className="bg-green-100 text-green-800">
+                                                ✅ Checked In
+                                              </Badge>
+                                            ) : (
+                                                <Button
+                                                size="sm"
+                                                onClick={() => handleManualCheckIn(buyerPubkey, selectedEventId!, saleData.id)}
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                              >
+                                                ✓ Check In
+                                              </Button>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -714,53 +701,6 @@ export function VerifyTicket() {
                       )}
                     </div>
 
-                    {/* Check-in Status */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-green-800 mb-3">
-                        ✅ Check-in Status ({eventCheckIns.length} checked in)
-                      </h3>
-                      {eventCheckIns.length > 0 ? (
-                        <div className="space-y-2">
-                          {eventCheckIns.map((checkIn, index) => {
-                            const checkInData = checkIn as { 
-                              id: string; 
-                              pubkey: string; 
-                              created_at: number; 
-                              tags: string[][];
-                            };
-                            
-                            const checkedInBy = checkInData.tags.find((tag: string[]) => tag[0] === "p")?.[1];
-                            const timestamp = checkInData.tags.find((tag: string[]) => tag[0] === "timestamp")?.[1];
-                            
-                            return (
-                              <div key={index} className="bg-white border border-green-300 rounded-lg p-3">
-                                <div className="flex justify-between items-center">
-                                  <div>
-                                    <span className="font-medium text-green-800">
-                                      Check-in #{index + 1}
-                                    </span>
-                                    <p className="text-green-600 text-sm">
-                                      Attendee: <Link to={`/profile/${nip19.npubEncode(checkInData.pubkey)}`} className="text-blue-600 hover:text-blue-800 underline">{checkInData.pubkey.slice(0, 8)}...</Link>
-                                    </p>
-                                    <p className="text-green-600 text-sm">
-                                      Checked in by: <Link to={`/profile/${nip19.npubEncode(checkedInBy || '')}`} className="text-blue-600 hover:text-blue-800 underline">{checkedInBy?.slice(0, 8)}...</Link>
-                                    </p>
-                                    <p className="text-green-600 text-sm">
-                                      Time: {timestamp ? new Date(parseInt(timestamp) * 1000).toLocaleString() : 'Unknown'}
-                                    </p>
-                                  </div>
-                                  <Badge variant="outline" className="bg-green-100 text-green-800">
-                                    ✓ Checked In
-                                  </Badge>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-green-600">No check-ins yet</p>
-                      )}
-                    </div>
                   </div>
                 )}
               </CardContent>
@@ -770,7 +710,6 @@ export function VerifyTicket() {
       </div>
     );
   }
-
 
   return (
     <div className="container mx-auto px-4 py-8">
