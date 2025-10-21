@@ -46,15 +46,15 @@ function EventCard({ eventData }: { eventData: UserRSVPWithEvent | UserTicketWit
               <TimezoneDisplay event={event} showLocalTime={false} />
             </div>
           )}
-          <div className="flex items-center justify-between mb-2 mt-2">
-            {isTicket ? (
-              <Badge
-                variant="outline"
-                className="bg-amber-500/10 text-amber-500"
-              >
-                🎟️ Ticket Purchased
-              </Badge>
-            ) : (
+                  <div className="flex items-center justify-between mb-2 mt-2">
+                    {isTicket ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-500/10 text-amber-500"
+                      >
+                        🎟️ Ticket {eventData.sequenceNumber && eventData.totalTickets ? `${eventData.sequenceNumber}/${eventData.totalTickets}` : 'Purchased'}
+                      </Badge>
+                    ) : (
               <Badge
                 variant="outline"
                 className={
