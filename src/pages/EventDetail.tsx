@@ -38,7 +38,7 @@ import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
 import { EventComments } from "@/components/EventComments";
 import { EventCategories } from "@/components/EventCategories";
-import { downloadICS } from "@/lib/icsExport";
+import { CalendarOptions } from "@/components/CalendarOptions";
 import { decodeEventIdentifier, createEventUrl } from "@/lib/nip19Utils";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import {
@@ -522,15 +522,9 @@ export function EventDetail() {
                     event.tags.find((tag) => tag[0] === "title")?.[1] || "Event"
                   }
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => downloadICS(event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting)}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Calendar
-                </Button>
+                <CalendarOptions
+                  event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting}
+                />
                 <Button
                   variant="outline"
                   size="sm"
