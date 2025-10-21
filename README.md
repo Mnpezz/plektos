@@ -11,10 +11,16 @@ Plektos is a decentralized meetup platform built on Nostr. It enables users to c
 - 🎯 Create and manage events with detailed information
 - 📅 Schedule and organize meetups
 - 📍 Location-based event discovery with smart address search
+- 🔄 **Advanced Recurring Events** - Create recurring event series with flexible patterns
+  - Daily, weekly, and monthly recurrence options
+  - Advanced monthly patterns (e.g., "3rd Thursday of every month")
+  - Custom repeat intervals and occurrence limits
+  - Visual preview of generated events
 - 🗺️ **Interactive map view** to visualize events geographically
 - 📏 **Distance-based sorting** to find events near you
 - ⚡ Use Zaps to pay for event tickets
 - 🔔 Real-time notifications for RSVPs, comments, and zaps
+- 📱 **Enhanced Calendar Integration** - Direct calendar app integration with multiple providers
 
 ### Privacy & Security
 
@@ -161,6 +167,25 @@ Events store location data following the Nostr NIP-52 standard:
 - **Raw coordinates** (`lat`/`lon` tags): Stored for backward compatibility
 - **Human-readable address** (`location` tag): Display text for users
 
+### Recurring Events System
+
+Plektos now features a comprehensive recurring events system inspired by Eventbrite's professional event management:
+
+- **🔄 Flexible Recurrence Patterns**
+  - Daily events (every N days)
+  - Weekly events (specific days of the week)
+  - Monthly events (same day or advanced patterns like "3rd Thursday")
+
+- **📅 Advanced Monthly Patterns**
+  - Same day of month (e.g., "15th of every month")
+  - Same weekday of month (e.g., "3rd Thursday of every month")
+  - Last weekday of month (e.g., "Last Friday of every month")
+
+- **👀 Visual Event Preview**
+  - See exactly what events will be created before submission
+  - Preview shows dates, times, and locations for each occurrence
+  - Easy editing of individual events after creation
+  
 ## Contributing
 
 1. Fork the repository
