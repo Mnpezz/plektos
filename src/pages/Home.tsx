@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Link } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createEventIdentifier } from "@/lib/nip19Utils";
-import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
+import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom, EventRSVP } from "@/lib/eventTypes";
 import { isLiveEvent, isInPersonEvent, getStreamingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
 import { MapView } from "@/components/MapView";
 import { LocationSearch } from "@/components/LocationSearch";
 import { sortEventsByDistance, formatDistance, type Coordinates } from "@/lib/geolocation";
+import { formatAmount } from "@/lib/lightning";
 
 export function Home() {
   console.log("Home component rendering");
@@ -777,6 +778,44 @@ export function Home() {
               const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
               const eventIdentifier = createEventIdentifier(event);
               
+              // Extract pricing information
+              const price = event.tags.find((tag) => tag[0] === "price")?.[1];
+              const lightningAddress = event.tags.find((tag) => tag[0] === "lud16")?.[1];
+              const isPaidEvent = price && lightningAddress;
+              
+              // Calculate attendee count from RSVPs
+              const eventAddress = event.tags.find((tag) => tag[0] === "d")?.[1] 
+                ? `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1]}` 
+                : null;
+              const eventId = event.id;
+              
+              // Get RSVPs for this event from allEventsData
+              const rsvpEvents = (allEventsData || [])
+                .filter((e): e is EventRSVP => e.kind === 31925)
+                .filter((e) => {
+                  // Match by event ID (e tag) for current version
+                  const hasEventId = e.tags.some((tag) => tag[0] === "e" && tag[1] === eventId);
+                  // Match by address coordinate (a tag) for all versions of replaceable events
+                  const hasAddress = eventAddress && e.tags.some((tag) => tag[0] === "a" && tag[1] === eventAddress);
+                  return hasEventId || hasAddress;
+                });
+              
+              // Get most recent RSVP for each user
+              const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
+                const existingRSVP = acc.find((e) => e.pubkey === curr.pubkey);
+                if (!existingRSVP || curr.created_at > existingRSVP.created_at) {
+                  const filtered = acc.filter((e) => e.pubkey !== curr.pubkey);
+                  return [...filtered, curr];
+                }
+                return acc;
+              }, [] as EventRSVP[]);
+              
+              // Count accepted RSVPs
+              const acceptedRSVPs = latestRSVPs.filter(
+                (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "accepted"
+              );
+              const attendeeCount = acceptedRSVPs.length;
+              
               // Check if this is a live event
               const live = isLiveEvent(event);
               const inPerson = isInPersonEvent(event);
@@ -859,22 +898,58 @@ export function Home() {
                       <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
                         {description}
                       </p>
-                      {streamingUrl ? (
-                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded-xl border border-blue-200 dark:border-blue-800">
-                          <span className="text-blue-600 dark:text-blue-400">🎥</span>
-                          <span className="font-medium text-blue-800 dark:text-blue-200">Live Stream</span>
-                        </div>
-                      ) : location && (
-                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
-                          <span className="text-primary">📍</span>
-                          <span className="font-medium">{location}</span>
-                          {sortByDistance && event.distance !== undefined && (
-                            <Badge variant="secondary" className="ml-auto">
-                              {formatDistance(event.distance)} away
-                            </Badge>
-                          )}
-                        </div>
-                      )}
+                      
+                      {/* Additional event details */}
+                      <div className="mt-3 space-y-2">
+                        {/* Pricing information */}
+                        {isPaidEvent ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-amber-50 dark:bg-amber-950/20 p-2 rounded-xl border border-amber-200 dark:border-amber-800">
+                            <span className="text-amber-600 dark:text-amber-400">🎟️</span>
+                            <span className="font-medium text-amber-800 dark:text-amber-200">
+                              {formatAmount(parseInt(price))}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-green-50 dark:bg-green-950/20 p-2 rounded-xl border border-green-200 dark:border-green-800">
+                            <span className="text-green-600 dark:text-green-400">🆓</span>
+                            <span className="font-medium text-green-800 dark:text-green-200">
+                              Free Event
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Attendee count (show for any count, but with different styling) */}
+                        {attendeeCount > 0 && (
+                          <div className={`flex items-center gap-2 text-sm text-muted-foreground p-2 rounded-xl border ${
+                            attendeeCount > 5 
+                              ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
+                              : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                          }`}>
+                            <span className={`${attendeeCount > 5 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>👥</span>
+                            <span className={`font-medium ${attendeeCount > 5 ? 'text-green-800 dark:text-green-200' : 'text-blue-800 dark:text-blue-200'}`}>
+                              {attendeeCount} {attendeeCount === 1 ? 'person' : 'people'} going
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Live stream or location */}
+                        {streamingUrl ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded-xl border border-blue-200 dark:border-blue-800">
+                            <span className="text-blue-600 dark:text-blue-400">🎥</span>
+                            <span className="font-medium text-blue-800 dark:text-blue-200">Live Stream</span>
+                          </div>
+                        ) : location && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
+                            <span className="text-primary">📍</span>
+                            <span className="font-medium">{location}</span>
+                            {sortByDistance && event.distance !== undefined && (
+                              <Badge variant="secondary" className="ml-auto">
+                                {formatDistance(event.distance)} away
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </CardContent>
                     </Card>
                   </Link>
