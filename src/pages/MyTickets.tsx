@@ -15,6 +15,7 @@ import { useUserRSVPs, type UserRSVPWithEvent, type UserTicketWithEvent } from "
 import { LoginArea } from "@/components/auth/LoginArea";
 import { createEventIdentifier } from "@/lib/nip19Utils";
 import { TimezoneDisplay } from '@/components/TimezoneDisplay';
+import { TicketQRCode } from '@/components/TicketQRCode';
 
 function EventCard({ eventData }: { eventData: UserRSVPWithEvent | UserTicketWithEvent }) {
   const isTicket = 'isTicket' in eventData && eventData.isTicket;
@@ -26,8 +27,8 @@ function EventCard({ eventData }: { eventData: UserRSVPWithEvent | UserTicketWit
   const eventIdentifier = createEventIdentifier(event);
   
   return (
-    <Link to={`/event/${eventIdentifier}`}> 
-      <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group mb-4">
+    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group mb-4">
+      <Link to={`/event/${eventIdentifier}`} className="block">
         <div className="aspect-video w-full overflow-hidden relative">
           <img
             src={imageUrl || "/default-calendar.png"}
@@ -97,10 +98,17 @@ function EventCard({ eventData }: { eventData: UserRSVPWithEvent | UserTicketWit
             </p>
           )}
         </CardContent>
-      </Card>
-    </Link>
+      </Link>
+      
+      {/* Show QR Code for purchased tickets - OUTSIDE the Link */}
+      {isTicket && (
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+          <TicketQRCode ticket={eventData as UserTicketWithEvent} />
+        </div>
+      )}
+    </Card>
   );
-}
+        }
 
 function LoadingSkeleton() {
   return (
