@@ -520,74 +520,127 @@ export function VerifyTicket() {
   }, []);
 
   // Verify the ticket by checking the zap receipt
-  const { data: zapReceipt, isLoading } = useQuery({
+  const { data: zapReceipt, isLoading, error } = useQuery({
     queryKey: ["verifyTicket", ticketData?.receiptId],
     queryFn: async () => {
       if (!ticketData?.receiptId) return null;
 
       console.log('🔍 Verifying ticket with receipt ID:', ticketData.receiptId);
+      console.log('🔍 Ticket data:', {
+        eventId: ticketData.eventId,
+        receiptId: ticketData.receiptId,
+        amount: ticketData.amount,
+        buyerPubkey: ticketData.buyerPubkey,
+        eventTitle: ticketData.eventTitle
+      });
       
-      // First try to find by receipt ID only (should be unique)
-      let events = await nostr.query([
-        {
-          kinds: [9735], // Zap receipt
-          ids: [ticketData.receiptId],
-        },
-      ]);
+      // Retry mechanism for relay propagation delay
+      const maxRetries = 3;
+      const retryDelay = 2000; // 2 seconds
       
-      console.log('📋 Found events by ID only:', events.length);
-      
-      // If not found, try with event ID filter as well
-      if (events.length === 0) {
-        console.log('🔍 Trying with event ID filter...');
-        events = await nostr.query([
-          {
-            kinds: [9735], // Zap receipt
-            ids: [ticketData.receiptId],
-            "#e": [ticketData.eventId],
-          },
-        ]);
-        console.log('📋 Found events with event ID filter:', events.length);
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`🔄 Verification attempt ${attempt}/${maxRetries}`);
+        
+        try {
+          // First try to find by receipt ID only (should be unique)
+          let events = await nostr.query([
+            {
+              kinds: [9735], // Zap receipt
+              ids: [ticketData.receiptId],
+            },
+          ], { signal: AbortSignal.timeout(10000) }); // 10 second timeout
+          
+          console.log(`📋 Found events by ID only (attempt ${attempt}):`, events.length);
+          
+          // If not found, try with event ID filter as well
+          if (events.length === 0) {
+            console.log('🔍 Trying with event ID filter...');
+            try {
+              events = await nostr.query([
+                {
+                  kinds: [9735], // Zap receipt
+                  ids: [ticketData.receiptId],
+                  "#e": [ticketData.eventId],
+                },
+              ], { signal: AbortSignal.timeout(10000) }); // 10 second timeout
+              console.log(`📋 Found events with event ID filter (attempt ${attempt}):`, events.length);
+            } catch (error) {
+              console.log('❌ Error with event ID filter, trying without event ID:', error);
+              // If event ID is malformed, try without it
+              events = await nostr.query([
+                {
+                  kinds: [9735], // Zap receipt
+                  ids: [ticketData.receiptId],
+                },
+              ], { signal: AbortSignal.timeout(10000) }); // 10 second timeout
+              console.log(`📋 Found events without event ID filter (attempt ${attempt}):`, events.length);
+            }
+          }
+          
+          const result = events[0] || null;
+          if (result) {
+            console.log('✅ Found zap receipt:', result.id);
+            return result;
+          } else {
+            console.log(`❌ No zap receipt found for ID (attempt ${attempt}):`, ticketData.receiptId);
+            
+            // If this is not the last attempt, wait before retrying
+            if (attempt < maxRetries) {
+              console.log(`⏳ Waiting ${retryDelay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error in verification attempt ${attempt}:`, error);
+          if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
+            console.log(`⏰ Query timed out on attempt ${attempt}`);
+          }
+          if (attempt < maxRetries) {
+            console.log(`⏳ Waiting ${retryDelay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
       }
       
-      const result = events[0] || null;
-      if (result) {
-        console.log('✅ Found zap receipt:', result.id);
-      } else {
-        console.log('❌ No zap receipt found for ID:', ticketData.receiptId);
-      }
-      
-      return result;
+      console.log('❌ All verification attempts failed');
+      return null;
     },
     enabled: !!ticketData?.receiptId,
+    retry: 2, // Additional retries at the query level
+    retryDelay: 3000, // 3 seconds between retries
   });
 
+  // Handle verification status changes based on query state
   useEffect(() => {
     if (ticketData) {
-      // Set loading state when we start verification
-      setVerificationStatus('loading');
+      // Check if user is logged in
+      if (!user?.pubkey) {
+        console.log('❌ No user pubkey available - authentication may have failed');
+        setVerificationStatus('error');
+        return;
+      }
       
-      // Use a timeout to ensure we don't get stuck in loading state
-      const timeout = setTimeout(() => {
-        if (zapReceipt) {
-          console.log('✅ Ticket verified successfully');
-          console.log('🎫 Ticket data:', {
-            eventId: ticketData.eventId,
-            buyerPubkey: ticketData.buyerPubkey,
-            receiptId: ticketData.receiptId,
-            eventTitle: ticketData.eventTitle
-          });
-          setVerificationStatus('valid');
-        } else {
-          console.log('❌ Ticket verification failed - no zap receipt found');
-          console.log('🔍 Looking for receipt ID:', ticketData.receiptId);
-          setVerificationStatus('invalid');
-        }
-      }, 2000); // 2 second timeout
-      
-      return () => clearTimeout(timeout);
+      if (isLoading) {
+        setVerificationStatus('loading');
+      } else if (error) {
+        console.log('❌ Verification error:', error);
+        setVerificationStatus('error');
+      } else if (zapReceipt) {
+        console.log('✅ Ticket verified successfully');
+        console.log('🎫 Ticket data:', {
+          eventId: ticketData.eventId,
+          buyerPubkey: ticketData.buyerPubkey,
+          receiptId: ticketData.receiptId,
+          eventTitle: ticketData.eventTitle
+        });
+        setVerificationStatus('valid');
+      } else {
+        console.log('❌ Ticket verification failed - no zap receipt found');
+        console.log('🔍 Looking for receipt ID:', ticketData.receiptId);
+        setVerificationStatus('invalid');
+      }
     }
-  }, [ticketData, zapReceipt]);
+  }, [ticketData, user, isLoading, error, zapReceipt]);
 
   // Always show the ticket verification interface
   if (!ticketData) {
@@ -880,6 +933,7 @@ export function VerifyTicket() {
             <div className="text-center text-gray-500">
               <AlertCircle className="h-6 w-6 mx-auto mb-2 animate-spin" />
               <p>Verifying ticket on Nostr network...</p>
+              <p className="text-xs mt-1">This may take a few moments as we check multiple relays</p>
             </div>
           )}
 
