@@ -28,10 +28,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <NostrLoginProvider storageKey="plektos-login">
           <NostrProvider
             relays={[
-              "wss://relay.primal.net",
               "wss://relay.damus.io",
               "wss://nos.lol",
               "wss://relay.snort.social",
+              "wss://relay.nostr.band",
             ]}
           >
             <App />
