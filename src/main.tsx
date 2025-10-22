@@ -32,6 +32,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               "wss://nos.lol",
               "wss://relay.snort.social",
               "wss://relay.nostr.band",
+              "wss://relay.primal.net",
             ]}
           >
             <App />
