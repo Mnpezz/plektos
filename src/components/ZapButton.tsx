@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
@@ -92,6 +92,146 @@ export function ZapButton({
     }
   }, [showManualPayment, manualPaymentData]);
 
+  // Manual payment check - use same logic as notification system
+  const checkPaymentOnce = useCallback(async () => {
+    if (!manualPaymentData || !nostr || !_user?.pubkey) {
+      console.log('❌ Missing required data for payment check');
+      return;
+    }
+
+    console.log('🔍 Payment check - searching for zap receipts...');
+    
+    try {
+      console.log('🔍 Executing zap receipt queries...');
+      
+      // Look for zap receipts where the HOST is the recipient, then filter by event ID and amount
+      const [zapReceipts, allZapReceipts] = await Promise.all([
+        nostr.query([
+          {
+            kinds: [9735], // Zap receipts
+            "#p": [manualPaymentData.eventPubkey], // Where HOST is the recipient
+            limit: 10
+          }
+        ], { signal: AbortSignal.timeout(5000) }), // 5 second timeout
+        nostr.query([
+          {
+            kinds: [9735], // ALL zap receipts (for debugging)
+            limit: 20
+          }
+        ], { signal: AbortSignal.timeout(5000) }) // 5 second timeout
+      ]);
+      
+      console.log('🔍 Queries completed, processing results...');
+
+      console.log('🎫 Found zap receipts for host:', zapReceipts.length);
+      console.log('🎫 Found ALL zap receipts in system:', allZapReceipts.length);
+      console.log('🔍 Query details:', {
+        buyerPubkey: _user.pubkey,
+        eventId: manualPaymentData.eventId,
+        amount: manualPaymentData.amount
+      });
+      
+      // Debug: Log all zap receipts to see their structure
+      if (zapReceipts.length > 0) {
+        console.log('🔍 Zap receipts for host:');
+        zapReceipts.forEach((receipt: { id: string; pubkey: string; created_at: number; tags: string[][]; content: string }, index: number) => {
+          console.log(`  Receipt ${index + 1}:`, {
+            id: receipt.id,
+            pubkey: receipt.pubkey,
+            created_at: new Date(receipt.created_at * 1000).toISOString(),
+            tags: receipt.tags,
+            content: receipt.content
+          });
+        });
+      }
+      
+      // Debug: Log ALL zap receipts to see what exists
+      if (allZapReceipts.length > 0) {
+        console.log('🔍 ALL zap receipts in system:');
+        allZapReceipts.forEach((receipt: { id: string; pubkey: string; created_at: number; tags: string[][]; content: string }, index: number) => {
+          console.log(`  All Receipt ${index + 1}:`, {
+            id: receipt.id,
+            pubkey: receipt.pubkey,
+            created_at: new Date(receipt.created_at * 1000).toISOString(),
+            tags: receipt.tags,
+            content: receipt.content
+          });
+        });
+      }
+      
+            // Check if any zap receipt is for our specific event and is recent (within last 1 minutes)
+            const fiveMinutesAgo = Math.floor(Date.now() / 1000) - (1 * 60); // 1 minutes ago in seconds
+            const ourZapReceipt = zapReceipts.find((receipt: { id: string; tags: string[][]; created_at: number }) => {
+              const eventId = receipt.tags.find((tag: string[]) => tag[0] === "e")?.[1];
+              const isRecent = receipt.created_at > fiveMinutesAgo;
+              
+              console.log('🔍 Checking receipt:', { 
+                eventId, 
+                ourEventId: manualPaymentData.eventId,
+                receiptId: receipt.id,
+                created_at: new Date(receipt.created_at * 1000).toISOString(),
+                isRecent,
+                fiveMinutesAgo: new Date(fiveMinutesAgo * 1000).toISOString()
+              });
+              
+              return eventId === manualPaymentData.eventId && isRecent;
+            });
+
+      if (ourZapReceipt) {
+        console.log('✅ Found matching zap receipt!', ourZapReceipt.id);
+        
+        // Create the ticket using the same logic as successful zap
+        try {
+          await confirmManualPayment(manualPaymentData);
+          setShowManualPayment(false);
+          setManualPaymentData(null);
+          _setIsPollingPayment(false);
+          toast.success("Payment confirmed! Ticket created successfully!");
+        } catch (error) {
+          console.error('❌ Error creating ticket:', error);
+          toast.error("Payment detected but failed to create ticket. Please contact support.");
+        }
+      } else {
+        console.log('⏳ No matching zap receipt found yet, will check again in 10 seconds...');
+        _setIsPollingPayment(false);
+      }
+    } catch (error) {
+      console.error("Error checking payment:", error);
+      console.error("Error details:", {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      toast.error("Error checking payment. Please try again.");
+      _setIsPollingPayment(false);
+    }
+  }, [manualPaymentData, nostr, _user, confirmManualPayment, setShowManualPayment, setManualPaymentData, _setIsPollingPayment]);
+
+  // Automatic payment detection - check every 10 seconds when manual payment dialog is open
+  useEffect(() => {
+    if (showManualPayment && manualPaymentData && !_isPollingPayment) {
+      console.log('ZapButton: Starting automatic payment detection every 10 seconds');
+      
+      // Check immediately
+      checkPaymentOnce();
+      
+      // Then check every 10 seconds
+      const interval = setInterval(() => {
+        if (showManualPayment && manualPaymentData) {
+          console.log('ZapButton: Automatic payment check (every 10 seconds)');
+          checkPaymentOnce();
+        } else {
+          clearInterval(interval);
+        }
+      }, 10000); // 10 seconds
+      
+      // Cleanup interval when component unmounts or dialog closes
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [showManualPayment, manualPaymentData, _isPollingPayment, checkPaymentOnce]);
+
   const _handleConfirmPayment = async () => {
     if (!manualPaymentData) return;
     
@@ -106,135 +246,6 @@ export function ZapButton({
       toast.error("Failed to confirm payment. Please try again.");
     } finally {
       setIsConfirmingPayment(false);
-    }
-  };
-
-  // Manual payment check - check once for payment
-  const checkPaymentOnce = async () => {
-    if (!manualPaymentData || !nostr || !manualPaymentData.eventPubkey || !_user?.pubkey) return;
-    
-    _setIsPollingPayment(true);
-    toast.info("Checking for payment...");
-    
-    try {
-      console.log('🔍 Manual payment check...');
-      
-      // Check if payment was made by looking for zap receipts where HOST is the recipient
-      // OR by looking for zap requests that we created earlier
-      const [zapReceipts, zapRequests] = await Promise.all([
-        nostr.query([
-          {
-            kinds: [9735], // Zap receipts
-            "#p": [manualPaymentData.eventPubkey], // Where HOST is the recipient
-            limit: 10
-          }
-        ]),
-        nostr.query([
-          {
-            kinds: [9734], // Zap requests
-            authors: [_user.pubkey], // Where current user is the author
-            "#e": [manualPaymentData.eventId], // For this specific event
-            limit: 10
-          }
-        ])
-      ]);
-
-      console.log('🎫 Found zap receipts for host:', zapReceipts.length);
-      console.log('🎫 Found zap requests from user:', zapRequests.length);
-      
-      // Debug: Log all zap receipts to see their structure
-      console.log('🔍 Debugging zap receipts:');
-      zapReceipts.forEach((receipt: { tags: string[][]; created_at: number }, index: number) => {
-        const eventId = receipt.tags.find((tag: string[]) => tag[0] === "e")?.[1];
-        const amount = receipt.tags.find((tag: string[]) => tag[0] === "amount")?.[1];
-        const description = receipt.tags.find((tag: string[]) => tag[0] === "description")?.[1];
-        console.log(`  Receipt ${index + 1}:`, {
-          eventId,
-          amount,
-          created_at: new Date(receipt.created_at * 1000).toISOString(),
-          description: description ? 'Has description' : 'No description',
-          allTags: receipt.tags
-        });
-      });
-      
-      // Debug: Log all zap requests
-      console.log('🔍 Debugging zap requests:');
-      zapRequests.forEach((request: { tags: string[][]; created_at: number }, index: number) => {
-        const eventId = request.tags.find((tag: string[]) => tag[0] === "e")?.[1];
-        const amount = request.tags.find((tag: string[]) => tag[0] === "amount")?.[1];
-        console.log(`  Request ${index + 1}:`, {
-          eventId,
-          amount,
-          created_at: new Date(request.created_at * 1000).toISOString(),
-          allTags: request.tags
-        });
-      });
-      
-      console.log('🎯 Looking for:', {
-        expectedEventId: manualPaymentData.eventId,
-        expectedAmount: (manualPaymentData.amount * 1000).toString(),
-        expectedAmountSats: manualPaymentData.amount
-      });
-      
-      // Check if any zap receipt is for our specific event and amount
-      const ourZapReceipt = zapReceipts.find((receipt: { tags: string[][] }) => {
-        const eventId = receipt.tags.find((tag: string[]) => tag[0] === "e")?.[1];
-        const amount = receipt.tags.find((tag: string[]) => tag[0] === "amount")?.[1];
-        const expectedAmount = (manualPaymentData.amount * 1000).toString(); // Convert to millisats
-        
-        console.log(`  Checking receipt: eventId=${eventId} (expected=${manualPaymentData.eventId}), amount=${amount} (expected=${expectedAmount})`);
-        
-        return eventId === manualPaymentData.eventId && amount === expectedAmount;
-      });
-      
-      // Also check if we have a matching zap request (which means payment was initiated)
-      const ourZapRequest = zapRequests.find((request: { tags: string[][] }) => {
-        const eventId = request.tags.find((tag: string[]) => tag[0] === "e")?.[1];
-        const amount = request.tags.find((tag: string[]) => tag[0] === "amount")?.[1];
-        const expectedAmount = (manualPaymentData.amount * 1000).toString(); // Convert to millisats
-        
-        console.log(`  Checking request: eventId=${eventId} (expected=${manualPaymentData.eventId}), amount=${amount} (expected=${expectedAmount})`);
-        
-        return eventId === manualPaymentData.eventId && amount === expectedAmount;
-      });
-
-      if (ourZapReceipt) {
-        console.log('✅ Payment confirmed! Host received payment:', ourZapReceipt);
-        
-        // Now create the ticket for the buyer
-        try {
-          await confirmManualPayment(manualPaymentData);
-          setShowManualPayment(false);
-          setManualPaymentData(null);
-          _setIsPollingPayment(false);
-          toast.success("Payment confirmed! Ticket created successfully!");
-        } catch (error) {
-          console.error('Error creating ticket after payment:', error);
-          toast.error("Payment detected but failed to create ticket. Please contact support.");
-        }
-      } else if (ourZapRequest) {
-        console.log('✅ Zap request found! Payment was initiated, creating ticket:', ourZapRequest);
-        
-        // Create the ticket for the buyer
-        try {
-          await confirmManualPayment(manualPaymentData);
-          setShowManualPayment(false);
-          setManualPaymentData(null);
-          _setIsPollingPayment(false);
-          toast.success("Payment confirmed! Ticket created successfully!");
-        } catch (error) {
-          console.error('Error creating ticket after payment:', error);
-          toast.error("Payment detected but failed to create ticket. Please contact support.");
-        }
-      } else {
-        console.log('⏳ No payment found yet');
-        toast.warning("Payment not found. Please ensure you've completed the payment and try again.");
-        _setIsPollingPayment(false);
-      }
-    } catch (error) {
-      console.error("Error checking payment:", error);
-      toast.error("Error checking payment. Please try again.");
-      _setIsPollingPayment(false);
     }
   };
 
@@ -475,29 +486,23 @@ export function ZapButton({
               </div>
             )}
 
-            {/* Manual Payment Check Button */}
+            {/* Automatic Payment Detection Status */}
             <div className="mt-3 space-y-2">
-              <Button
-                onClick={checkPaymentOnce}
-                disabled={_isPollingPayment}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-                size="sm"
-              >
-                {_isPollingPayment ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Checking for payment...
-                  </>
-                ) : (
-                  <>
-                    🔍 Check Payment
-                  </>
-                )}
-              </Button>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-sm text-blue-800 font-medium">
+                    Waiting for payment confirmation...
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  Please complete the payment in your Lightning wallet. We're monitoring for the payment to the host.
+                </p>
+              </div>
               
               <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
                 <strong className="text-yellow-800 dark:text-yellow-200">How to pay:</strong> 
-                <span className="text-yellow-700 dark:text-yellow-300"> Copy the invoice above and paste it into your Lightning wallet (Coinos, Alby, Zeus, etc.). After paying, click "Check Payment" to verify your ticket.</span>
+                <span className="text-yellow-700 dark:text-yellow-300"> Copy the invoice above and paste it into your Lightning wallet (Coinos, Alby, Zeus, etc.). We'll automatically detect your payment and create your ticket.</span>
               </div>
             </div>
           </div>
