@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, AlertCircle, Camera, QrCode, Clipboard, X, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Camera, QrCode, Clipboard, X } from "lucide-react";
 import { useNostr } from "@nostrify/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { nip19 } from "nostr-tools";
-import { Link } from "react-router-dom";
-import { toast } from "sonner";
+import { useAuthor } from "@/hooks/useAuthor";
 import QrScanner from "qr-scanner";
 
 interface TicketData {
@@ -25,44 +23,144 @@ interface TicketData {
   purchaseTime: number;
 }
 
+interface AttendeeItemProps {
+  buyerPubkey: string;
+  amount: number;
+  purchaseTime: number;
+  receiptId: string;
+  isCheckedIn: boolean;
+  checkInTimestamp?: string;
+  index: number;
+  eventId: string;
+  eventTitle: string;
+}
+
+function AttendeeItem({ 
+  buyerPubkey, 
+  amount, 
+  purchaseTime, 
+  receiptId, 
+  isCheckedIn, 
+  checkInTimestamp, 
+  index,
+  eventId,
+  eventTitle
+}: AttendeeItemProps) {
+  const author = useAuthor(buyerPubkey);
+  const metadata = author.data?.metadata;
+  const displayName = metadata?.name || metadata?.display_name || `User ${index + 1}`;
+  const profileImage = metadata?.picture;
+
+  return (
+    <div className={`bg-white border-2 rounded-xl p-4 shadow-sm transition-all ${
+      isCheckedIn 
+        ? 'border-green-300 bg-green-50/30' 
+        : 'border-gray-200 bg-gray-50/30'
+    }`}>
+      <div className="flex items-center gap-3">
+        {/* User Avatar */}
+        <div className="flex-shrink-0">
+          {profileImage ? (
+            <img 
+              src={profileImage} 
+              alt={displayName}
+              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        {/* User Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="font-semibold text-gray-900 truncate">
+              {displayName}
+            </h4>
+            {isCheckedIn && (
+              <Badge className="bg-green-500 text-white font-medium text-xs">
+                ✅ Checked In
+              </Badge>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <span className="font-medium">{amount} sats</span>
+            <span>•</span>
+            <span>{new Date(purchaseTime * 1000).toLocaleDateString()}</span>
+            {isCheckedIn && checkInTimestamp && (
+              <>
+                <span>•</span>
+                <span className="text-green-600 font-medium">
+                  Checked in: {new Date(parseInt(checkInTimestamp) * 1000).toLocaleDateString()}
+                </span>
+              </>
+            )}
+          </div>
+          
+          <p className="text-xs text-gray-500 mt-1">
+            Receipt: <button 
+              onClick={() => {
+                // Create ticket data for verification
+                const ticketData = {
+                  eventId: eventId,
+                  receiptId: receiptId,
+                  amount: amount,
+                  buyerPubkey: buyerPubkey,
+                  eventTitle: eventTitle,
+                  purchaseTime: purchaseTime,
+                };
+                
+                // Navigate to verification page with ticket data
+                const ticketUrl = `${window.location.origin}/verify-ticket?data=${encodeURIComponent(JSON.stringify(ticketData))}`;
+                window.open(ticketUrl, '_blank');
+              }}
+              className="text-blue-600 hover:text-blue-800 underline font-mono"
+            >
+              {receiptId.slice(0, 8)}...
+            </button>
+          </p>
+        </div>
+
+        {/* Status Icon */}
+        <div className="flex-shrink-0">
+          {isCheckedIn ? (
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-gray-400" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function VerifyTicket() {
   const [searchParams] = useSearchParams();
   const { nostr } = useNostr();
   const { mutate: publishEvent } = useNostrPublish();
 
-  // Function to manually check in an attendee
-  const handleManualCheckIn = async (buyerPubkey: string, eventId: string, receiptId?: string) => {
-    if (!user?.signer) {
-      toast.error("Please log in to check in attendees");
-      return;
-    }
-
-    try {
-      const checkInEvent = {
-        kind: 31926, // Entry tracking event
-        content: `Manual check-in by event host`,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ["e", eventId], // Event ID
-          ["p", buyerPubkey], // Attendee pubkey
-          ["timestamp", Math.floor(Date.now() / 1000).toString()], // Check-in timestamp
-          ...(receiptId ? [["receipt", receiptId]] : []), // Specific receipt ID if provided
-        ],
-      };
-
-      const signedEvent = await user.signer.signEvent(checkInEvent);
-      await nostr.event(signedEvent);
-
-      toast.success("Attendee checked in successfully!");
-      
-      // Refresh the check-in data
-      window.location.reload();
-    } catch (error) {
-      console.error("Error checking in attendee:", error);
-      toast.error("Failed to check in attendee");
-    }
-  };
+  // Removed manual check-in functionality - focusing on ticket verification only
   const { user } = useCurrentUser();
+  
+  // Add stable user state to prevent Event Host Dashboard from disappearing during auth failures
+  const [stableUser, setStableUser] = useState(user);
+  
+  React.useEffect(() => {
+    if (user) {
+      setStableUser(user);
+    }
+    // Don't clear stableUser when user becomes null - keep the last known user state
+  }, [user]);
+
+  // Use the current user if available, otherwise fall back to stable user
+  const effectiveUser = user || stableUser;
   const [ticketData, setTicketData] = useState<TicketData | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'loading' | 'valid' | 'invalid' | 'error'>('loading');
   const [manualInput, setManualInput] = useState('');
@@ -100,8 +198,8 @@ export function VerifyTicket() {
         setIsCheckingEventHost(true);
         
         // Check if user is available
-        if (!user?.pubkey) {
-          console.log('❌ No user pubkey available');
+        if (!effectiveUser?.pubkey) {
+          console.log('❌ No user pubkey available - authentication may have failed');
           setIsEventHost(false);
           setIsCheckingEventHost(false);
           return;
@@ -111,11 +209,13 @@ export function VerifyTicket() {
         const userEvents = await nostr.query([
           { 
             kinds: [31922, 31923], // Date and time-based events only
-            authors: [user.pubkey] // Filter by current user
+            authors: [effectiveUser.pubkey] // Filter by current user
           }
         ], { 
           signal: AbortSignal.timeout(3000) // 3 second timeout like Profile page
         }) as unknown[];
+
+        console.log(`🔍 Found ${userEvents.length} events for user ${effectiveUser.pubkey.slice(0, 8)}...`);
 
         if (userEvents.length > 0) {
           setIsEventHost(true);
@@ -165,12 +265,11 @@ export function VerifyTicket() {
     };
 
     checkEventHostStatus();
-  }, [nostr, user]);
+  }, [nostr, effectiveUser]);
 
   // Load ticket sales and check-ins for selected event
-  useEffect(() => {
-    const loadEventData = async () => {
-      if (!selectedEventId || !nostr || !user?.pubkey) return;
+  const loadEventData = useCallback(async () => {
+      if (!selectedEventId || !nostr || !effectiveUser?.pubkey) return;
 
       try {
     // Load ticket sales (zap receipts where current user is the recipient)
@@ -180,7 +279,7 @@ export function VerifyTicket() {
           ticketSales = await nostr.query([
             {
               kinds: [9735], // Zap receipts
-              "#p": [user.pubkey], // Where current user is the recipient
+              "#p": [effectiveUser.pubkey], // Where current user is the recipient
               limit: 100
             }
           ], { signal: AbortSignal.timeout(5000) }); // 5 second timeout
@@ -197,6 +296,12 @@ export function VerifyTicket() {
             limit: 100
           }
         ]);
+        
+        console.log(`📊 Host Dashboard Data for event ${selectedEventId}:`, {
+          ticketSales: ticketSales.length,
+          checkIns: checkIns.length,
+          userPubkey: effectiveUser.pubkey.slice(0, 8) + '...'
+        });
 
 
         // Filter ticket sales to only those for the selected event
@@ -219,10 +324,12 @@ export function VerifyTicket() {
       } catch (error) {
         console.error('Error loading event data:', error);
       }
-    };
+    }, [selectedEventId, nostr, effectiveUser]);
 
+  // Load event data when selectedEventId changes
+  useEffect(() => {
     loadEventData();
-  }, [selectedEventId, nostr, user]);
+  }, [loadEventData]);
 
   const handleManualInput = () => {
     if (!manualInput.trim()) return;
@@ -317,7 +424,7 @@ export function VerifyTicket() {
     if (!ticketData) return;
     
     try {
-      // Look for existing entry events for this ticket
+      // Look for existing entry events for this specific ticket
       const entryEvents = await nostr.query([
         {
           kinds: [31926], // Custom kind for entry tracking
@@ -327,7 +434,13 @@ export function VerifyTicket() {
         }
       ]);
       
-      if (entryEvents.length > 0) {
+      // Check if any entry event matches this specific receipt ID
+      const matchingEntry = entryEvents.find((event: { tags: string[][] }) => {
+        const receiptTag = event.tags.find((tag) => tag[0] === "receipt");
+        return receiptTag && receiptTag[1] === ticketData.receiptId;
+      });
+      
+      if (matchingEntry) {
         setEntryStatus('already_entered');
       } else {
         setEntryStatus('not_checked');
@@ -350,6 +463,7 @@ export function VerifyTicket() {
         tags: [
           ["e", ticketData.eventId],
           ["p", ticketData.buyerPubkey],
+          ["receipt", ticketData.receiptId], // Include receipt ID for specific ticket matching
           ["t", "entry"],
           ["status", "entered"],
           ["timestamp", Math.floor(Date.now() / 1000).toString()]
@@ -359,10 +473,22 @@ export function VerifyTicket() {
       // Publish entry event
       publishEvent(entryEvent, {
         onSuccess: () => {
+          console.log('✅ Check-in event published successfully');
+          console.log('🎫 Check-in details:', {
+            eventId: ticketData.eventId,
+            buyerPubkey: ticketData.buyerPubkey,
+            receiptId: ticketData.receiptId
+          });
           setEntryStatus('checked_in');
           // Re-check entry status to ensure UI updates
           setTimeout(() => {
             checkEntryStatus();
+            // Also refresh host dashboard data if we're on the same event
+            if (selectedEventId === ticketData.eventId) {
+              console.log('🔄 Refreshing host dashboard data...');
+              // Force reload the event data
+              loadEventData();
+            }
           }, 1000);
           alert('Attendee successfully checked in!');
         },
@@ -399,30 +525,69 @@ export function VerifyTicket() {
     queryFn: async () => {
       if (!ticketData?.receiptId) return null;
 
-      const events = await nostr.query([
+      console.log('🔍 Verifying ticket with receipt ID:', ticketData.receiptId);
+      
+      // First try to find by receipt ID only (should be unique)
+      let events = await nostr.query([
         {
           kinds: [9735], // Zap receipt
           ids: [ticketData.receiptId],
-          "#e": [ticketData.eventId],
         },
       ]);
-      return events[0] || null;
+      
+      console.log('📋 Found events by ID only:', events.length);
+      
+      // If not found, try with event ID filter as well
+      if (events.length === 0) {
+        console.log('🔍 Trying with event ID filter...');
+        events = await nostr.query([
+          {
+            kinds: [9735], // Zap receipt
+            ids: [ticketData.receiptId],
+            "#e": [ticketData.eventId],
+          },
+        ]);
+        console.log('📋 Found events with event ID filter:', events.length);
+      }
+      
+      const result = events[0] || null;
+      if (result) {
+        console.log('✅ Found zap receipt:', result.id);
+      } else {
+        console.log('❌ No zap receipt found for ID:', ticketData.receiptId);
+      }
+      
+      return result;
     },
     enabled: !!ticketData?.receiptId,
   });
 
   useEffect(() => {
-    if (ticketData && !isLoading) {
-      // Verify ticket data
-      if (zapReceipt) {
-        console.log('✅ Ticket verified successfully');
-        setVerificationStatus('valid');
-      } else {
-        console.log('❌ Ticket verification failed - no zap receipt found');
-        setVerificationStatus('invalid');
-      }
+    if (ticketData) {
+      // Set loading state when we start verification
+      setVerificationStatus('loading');
+      
+      // Use a timeout to ensure we don't get stuck in loading state
+      const timeout = setTimeout(() => {
+        if (zapReceipt) {
+          console.log('✅ Ticket verified successfully');
+          console.log('🎫 Ticket data:', {
+            eventId: ticketData.eventId,
+            buyerPubkey: ticketData.buyerPubkey,
+            receiptId: ticketData.receiptId,
+            eventTitle: ticketData.eventTitle
+          });
+          setVerificationStatus('valid');
+        } else {
+          console.log('❌ Ticket verification failed - no zap receipt found');
+          console.log('🔍 Looking for receipt ID:', ticketData.receiptId);
+          setVerificationStatus('invalid');
+        }
+      }, 2000); // 2 second timeout
+      
+      return () => clearTimeout(timeout);
     }
-  }, [ticketData, zapReceipt, isLoading]);
+  }, [ticketData, zapReceipt]);
 
   // Always show the ticket verification interface
   if (!ticketData) {
@@ -430,14 +595,14 @@ export function VerifyTicket() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Ticket Verification Section - Always Visible */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-center flex items-center justify-center gap-2">
-                <QrCode className="h-6 w-6" />
+          <Card className="mb-6 border-2 border-primary/20 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10">
+              <CardTitle className="text-center flex items-center justify-center gap-2 text-xl">
+                <QrCode className="h-7 w-7 text-primary" />
                 Ticket Verification
               </CardTitle>
               <p className="text-center text-gray-600 text-sm">
-                Scan or enter ticket data to verify attendance
+                Scan QR code or enter ticket data to verify attendance
               </p>
             </CardHeader>
             <CardContent>
@@ -455,43 +620,44 @@ export function VerifyTicket() {
                 
                 <TabsContent value="scan" className="space-y-4">
                   <div className="text-center">
-                    <p className="text-gray-600 mb-4">
-                      Scan the QR code from the attendee's ticket
+                    <p className="text-gray-600 mb-4 font-medium">
+                      📱 Scan the QR code from the attendee's ticket
                     </p>
                     
                     {/* Video element for QR scanning */}
                     <div className="relative mb-4">
                       <video
                         ref={videoRef}
-                        className="w-full max-w-md mx-auto rounded-lg border-2 border-dashed border-gray-300"
+                        className="w-full max-w-lg mx-auto rounded-xl border-2 border-dashed border-primary/30 shadow-lg"
                         style={{ display: isScanning ? 'block' : 'none' }}
                       />
                       {!isScanning && (
-                        <div className="w-full max-w-md mx-auto h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-                          <div className="text-center text-gray-500">
-                            <Camera className="h-12 w-12 mx-auto mb-2" />
-                            <p className="text-sm">Camera will appear here</p>
+                        <div className="w-full max-w-lg mx-auto h-64 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border-2 border-dashed border-primary/30 flex items-center justify-center shadow-lg">
+                          <div className="text-center text-primary/60">
+                            <Camera className="h-16 w-16 mx-auto mb-3" />
+                            <p className="text-lg font-medium">Camera will appear here</p>
+                            <p className="text-sm mt-1">Click "Start QR Scanner" to begin</p>
                           </div>
                         </div>
                       )}
                     </div>
                     
                     {/* Scanner controls */}
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <Button 
                         onClick={handleQRScan} 
                         disabled={isScanning}
-                        className="w-full"
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3"
                         size="lg"
                       >
                         {isScanning ? (
                           <>
-                            <AlertCircle className="h-4 w-4 mr-2 animate-spin" />
-                            Scanning...
+                            <AlertCircle className="h-5 w-5 mr-2 animate-spin" />
+                            Scanning for QR Code...
                           </>
                         ) : (
                           <>
-                            <Camera className="h-4 w-4 mr-2" />
+                            <Camera className="h-5 w-5 mr-2" />
                             Start QR Scanner
                           </>
                         )}
@@ -501,7 +667,7 @@ export function VerifyTicket() {
                         <Button 
                           onClick={stopScanner}
                           variant="outline"
-                          className="w-full"
+                          className="w-full border-2 border-red-200 text-red-600 hover:bg-red-50"
                         >
                           <X className="h-4 w-4 mr-2" />
                           Stop Scanner
@@ -525,24 +691,28 @@ export function VerifyTicket() {
                 </TabsContent>
                 
                 <TabsContent value="manual" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="ticket-input">Ticket Data or URL</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="ticket-input" className="text-base font-medium">
+                      📝 Ticket Data or URL
+                    </Label>
                     <Input
                       id="ticket-input"
                       placeholder="Paste ticket data or verification URL here..."
                       value={manualInput}
                       onChange={(e) => setManualInput(e.target.value)}
-                      className="font-mono text-sm"
+                      className="font-mono text-sm border-2 border-primary/20 focus:border-primary/50 h-12"
                     />
-                    <p className="text-xs text-gray-500">
-                      Paste either the full ticket JSON data or the verification URL
+                    <p className="text-sm text-gray-600">
+                      Paste either the full ticket JSON data or the verification URL from the attendee's ticket
                     </p>
                   </div>
                   <Button 
                     onClick={handleManualInput}
                     disabled={!manualInput.trim()}
-                    className="w-full"
+                    className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3"
+                    size="lg"
                   >
+                    <Clipboard className="h-5 w-5 mr-2" />
                     Verify Ticket
                   </Button>
                 </TabsContent>
@@ -598,13 +768,13 @@ export function VerifyTicket() {
                 {/* Event-Specific Data */}
                 {selectedEventId && (
                   <div className="space-y-6">
-                    {/* Ticket Sales Summary */}
+                    {/* Attendees List */}
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-amber-800 mb-3">
-                        🎫 Ticket Management ({eventTicketSales.length} tickets)
+                        👥 Attendees ({eventTicketSales.length})
                       </h3>
                       {eventTicketSales.length > 0 ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {eventTicketSales
                             .sort((a, b) => {
                               const aData = a as { created_at: number };
@@ -641,63 +811,44 @@ export function VerifyTicket() {
                             }
 
                             // Check if this specific ticket has been checked in
-                            const isCheckedIn = eventCheckIns.some((checkIn: { tags: string[][] }) => {
+                            const checkInInfo = eventCheckIns.find((checkIn: { tags: string[][] }) => {
                               const checkInBuyer = checkIn.tags.find((tag) => tag[0] === "p")?.[1];
                               const checkInEvent = checkIn.tags.find((tag) => tag[0] === "e")?.[1];
                               const checkInReceipt = checkIn.tags.find((tag) => tag[0] === "receipt")?.[1];
                               
-                              // Match by buyer and event first
-                              if (checkInBuyer === buyerPubkey && checkInEvent === selectedEventId) {
-                                // If there's a receipt tag, match by receipt ID (new check-ins)
-                                if (checkInReceipt) {
-                                  return checkInReceipt === saleData.id;
-                                } else {
-                                  // If no receipt tag, this is an old check-in - match by buyer and event only
-                                  return true;
-                                }
-                              }
-                              return false;
-                            });
+                              // Match by buyer, event, AND specific receipt ID to ensure we're checking the right ticket
+                              return checkInBuyer === buyerPubkey && 
+                                     checkInEvent === selectedEventId && 
+                                     checkInReceipt === saleData.id;
+                            }) as { tags: string[][] } | undefined;
+                            
+                            const isCheckedIn = !!checkInInfo;
+                            const checkInTimestamp = checkInInfo?.tags?.find((tag: string[]) => tag[0] === "timestamp")?.[1];
+
+                            // Get event title for the selected event
+                            const selectedEvent = myEvents.find((event: { id: string }) => event.id === selectedEventId);
+                            const eventTitle = selectedEvent ? 
+                              (selectedEvent as { tags: string[][] }).tags.find((tag: string[]) => tag[0] === "title")?.[1] || "Untitled Event" 
+                              : "Unknown Event";
 
                             return (
-                                      <div key={index} className="bg-white border border-amber-300 rounded-lg p-3">
-                                        <div className="flex justify-between items-center">
-                                          <div className="flex-1">
-                                            <span className="font-medium text-amber-800">
-                                              Ticket #{index + 1}
-                                            </span>
-                                            <p className="text-amber-600 text-sm">
-                                              Buyer: <Link to={`/profile/${nip19.npubEncode(buyerPubkey)}`} className="text-blue-600 hover:text-blue-800 underline">{buyerPubkey.slice(0, 8)}...</Link>
-                                            </p>
-                                            <p className="text-amber-600 text-sm">
-                                              Purchased: {new Date(saleData.created_at * 1000).toLocaleString()}
-                                            </p>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="bg-amber-100 text-amber-800">
-                                              💰 {amount} sats
-                                            </Badge>
-                                            {isCheckedIn ? (
-                                              <Badge variant="outline" className="bg-green-100 text-green-800">
-                                                ✅ Checked In
-                                              </Badge>
-                                            ) : (
-                                                <Button
-                                                size="sm"
-                                                onClick={() => handleManualCheckIn(buyerPubkey, selectedEventId!, saleData.id)}
-                                                className="bg-green-600 hover:bg-green-700 text-white"
-                                              >
-                                                ✓ Check In
-                                              </Button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
+                              <AttendeeItem 
+                                key={index}
+                                buyerPubkey={buyerPubkey}
+                                amount={amount}
+                                purchaseTime={saleData.created_at}
+                                receiptId={saleData.id}
+                                isCheckedIn={isCheckedIn}
+                                checkInTimestamp={checkInTimestamp}
+                                index={index}
+                                eventId={selectedEventId || ''}
+                                eventTitle={eventTitle}
+                              />
                             );
                           })}
                         </div>
                       ) : (
-                        <p className="text-amber-600">No ticket sales yet</p>
+                        <p className="text-amber-600">No attendees yet</p>
                       )}
                     </div>
 
@@ -710,6 +861,7 @@ export function VerifyTicket() {
       </div>
     );
   }
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -773,15 +925,6 @@ export function VerifyTicket() {
                   <p className="text-orange-800 text-sm text-center">
                     ⚠️ This attendee has already been checked in for this event.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={checkEntryStatus}
-                    className="w-full mt-2"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh Status
-                  </Button>
                 </div>
               )}
               
@@ -790,15 +933,6 @@ export function VerifyTicket() {
                   <p className="text-blue-800 text-sm text-center">
                     ✅ Attendee has been successfully checked in!
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={checkEntryStatus}
-                    className="w-full mt-2"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh Status
-                  </Button>
                 </div>
               )}
               
