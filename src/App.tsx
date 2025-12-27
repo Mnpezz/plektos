@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeColorMeta } from "@/components/ThemeColorMeta";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { NotificationManager } from "@/components/NotificationManager";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { cleanupOldCache } from "@/lib/indexedDB";
 
 export function App() {
@@ -23,9 +24,11 @@ export function App() {
       <NotificationProvider>
         <NotificationManager>
           <ThemeColorMeta />
-          <Layout>
-            <AppRouter />
-          </Layout>
+          <PullToRefresh>
+            <Layout>
+              <AppRouter />
+            </Layout>
+          </PullToRefresh>
           <Toaster />
         </NotificationManager>
       </NotificationProvider>

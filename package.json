@@ -7,9 +7,18 @@
     "dev": "npm i && vite",
     "build": "npm i && vite build && node scripts/add-build-info.js",
     "test": "npm i && tsc -p tsconfig.app.json --noEmit && eslint && vitest run && vite build",
-    "deploy": "npm run build && npx -y surge@latest dist"
+    "deploy": "npm run build && npx -y surge@latest dist",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:build:android": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "cap:build:android:release": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
     "@fontsource-variable/outfit": "^5.2.6",
     "@getalby/sdk": "^5.1.0",
     "@hookform/resolvers": "^3.9.0",
