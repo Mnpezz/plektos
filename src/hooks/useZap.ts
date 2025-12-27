@@ -56,8 +56,6 @@ export function useZap() {
         }
 
         // Fetch LNURL data from the user's server
-        console.log("Fetching LNURL data for:", options.lightningAddress);
-        
         let lnurlResponse;
         try {
           lnurlResponse = await fetch(
@@ -69,18 +67,15 @@ export function useZap() {
               },
             }
           );
-        } catch (fetchError) {
-          console.error("Failed to fetch LNURL data:", fetchError);
+        } catch {
           throw new Error("Unable to connect to lightning service. Please check your internet connection.");
         }
-        
+
         if (!lnurlResponse.ok) {
-          console.error("LNURL fetch failed:", lnurlResponse.status, lnurlResponse.statusText);
           throw new Error("Lightning address not found or invalid");
         }
 
         const lnurlData = await lnurlResponse.json();
-        console.log("LNURL data:", lnurlData);
         
         if (lnurlData.status === "ERROR") {
           throw new Error(lnurlData.reason || "Lightning service error");
@@ -125,18 +120,11 @@ export function useZap() {
         };
 
         // Sign the zap request
-        console.log("Signing zap request:", zapRequestUnsigned);
         const zapRequest = await user.signer.signEvent(zapRequestUnsigned);
-        console.log("Signed zap request:", zapRequest);
 
         // Create the invoice using the LNURL callback
-        // Try different URL encoding approaches for better compatibility
         const zapRequestJson = JSON.stringify(zapRequest);
-        
-        // First attempt: Simple GET request without extra headers to avoid CORS preflight
         const callbackUrl = `${lnurlData.callback}?amount=${amountMsats}&nostr=${encodeURIComponent(zapRequestJson)}`;
-        
-        console.log("Calling LNURL callback (attempt 1):", callbackUrl);
 
         let callbackResponse;
         let zapSuccessful = true;
@@ -149,12 +137,10 @@ export function useZap() {
               'Accept': 'application/json',
             },
           });
-        } catch (corsError) {
-          console.log("GET request failed with CORS/fetch error:", corsError);
+        } catch {
           zapSuccessful = false;
-          
+
           // Skip to fallback immediately if we get a CORS or network error
-          console.log("Skipping POST attempt, trying fallback without nostr parameter");
           const fallbackUrl = `${lnurlData.callback}?amount=${amountMsats}`;
           
           try {
@@ -168,20 +154,17 @@ export function useZap() {
             if (callbackResponse.ok) {
               const fallbackData = await callbackResponse.json();
               if (fallbackData.pr && !fallbackData.status) {
-                console.log("Fallback successful, but this won't generate a zap receipt");
                 toast.warning("Payment will be sent but may not appear as a zap on Nostr");
                 zapSuccessful = false; // Not a real zap, just a payment
               }
             }
-          } catch (fallbackError) {
-            console.error("Fallback also failed:", fallbackError);
+          } catch {
             throw new Error("Unable to connect to lightning service. This may be due to CORS restrictions or service unavailability.");
           }
         }
 
         // If the first attempt failed but didn't error, try POST
         if (zapSuccessful && callbackResponse && !callbackResponse.ok) {
-          console.log("GET request failed, trying POST method");
           
           const postUrl = `${lnurlData.callback}`;
           const formData = new URLSearchParams({
@@ -198,19 +181,14 @@ export function useZap() {
               },
               body: formData
             });
-          } catch (postError) {
-            console.log("POST request also failed:", postError);
+          } catch {
             zapSuccessful = false;
           }
         }
 
         // Final fallback if everything fails
         if (zapSuccessful && (!callbackResponse || !callbackResponse.ok)) {
-          const errorText = await callbackResponse?.text().catch(() => "Unknown error");
-          console.error("LNURL callback failed:", callbackResponse?.status, errorText);
-          
           // Try final fallback without the nostr parameter
-          console.log("Trying final fallback without nostr parameter");
           const fallbackUrl = `${lnurlData.callback}?amount=${amountMsats}`;
           
           try {
@@ -224,7 +202,6 @@ export function useZap() {
             if (fallbackResponse.ok) {
               const fallbackData = await fallbackResponse.json();
               if (fallbackData.pr && !fallbackData.status) {
-                console.log("Final fallback successful, but this won't generate a zap receipt");
                 toast.warning("Payment will be sent but may not appear as a zap on Nostr");
                 callbackResponse = fallbackResponse;
                 zapSuccessful = false;
@@ -232,14 +209,12 @@ export function useZap() {
             } else {
               throw new Error("Failed to create lightning invoice. The lightning service may be temporarily unavailable.");
             }
-          } catch (fallbackError) {
-            console.error("Final fallback also failed:", fallbackError);
+          } catch {
             throw new Error("Failed to create lightning invoice. The lightning service may be temporarily unavailable.");
           }
         }
 
         const invoiceData = await callbackResponse.json();
-        console.log("LNURL callback response:", invoiceData);
 
         if (invoiceData.status === "ERROR") {
           throw new Error(invoiceData.reason || "Failed to create lightning invoice");
@@ -259,15 +234,12 @@ export function useZap() {
         // Enable WebLN
         try {
           await window.webln.enable();
-        } catch (error) {
-          console.error("Failed to enable WebLN:", error);
+        } catch {
           throw new Error("Failed to connect to lightning wallet. Please check your wallet permissions.");
         }
 
         // Send payment
-        console.log("Sending lightning payment:", invoiceData.pr);
         const paymentResult = await window.webln.sendPayment(invoiceData.pr);
-        console.log("Payment result:", paymentResult);
 
         // Success - show success toast only if caller didn't opt to handle it themselves
         if (!options.skipSuccessToast) {
@@ -281,7 +253,6 @@ export function useZap() {
         
         return paymentResult;
       } catch (error) {
-        console.error("Error sending zap:", error);
         throw error;
       }
     },

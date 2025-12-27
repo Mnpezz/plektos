@@ -1,7 +1,7 @@
 // NOTE: This file should normally not be modified unless you are adding a new provider.
 // To add new routes, edit the AppRouter.tsx file.
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { Layout } from "@/components/Layout";
 import AppRouter from "./AppRouter";
@@ -9,23 +9,26 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeColorMeta } from "@/components/ThemeColorMeta";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { NotificationManager } from "@/components/NotificationManager";
-
-const queryClient = new QueryClient();
+import { cleanupOldCache } from "@/lib/indexedDB";
 
 export function App() {
+  // Clean up old cached data on app start (non-blocking)
+  useEffect(() => {
+    // Clean up cache entries older than 7 days
+    cleanupOldCache(7 * 24 * 60 * 60 * 1000).catch(() => {});
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="system" storageKey="plektos-theme">
-      <QueryClientProvider client={queryClient}>
-        <NotificationProvider>
-          <NotificationManager>
-            <ThemeColorMeta />
-            <Layout>
-              <AppRouter />
-            </Layout>
-            <Toaster />
-          </NotificationManager>
-        </NotificationProvider>
-      </QueryClientProvider>
+      <NotificationProvider>
+        <NotificationManager>
+          <ThemeColorMeta />
+          <Layout>
+            <AppRouter />
+          </Layout>
+          <Toaster />
+        </NotificationManager>
+      </NotificationProvider>
     </ThemeProvider>
   );
 }

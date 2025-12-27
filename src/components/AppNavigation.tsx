@@ -37,9 +37,6 @@ export function AppNavigation({ children }: AppNavigationProps) {
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const { shouldShowOnboarding, completeOnboarding, markUserAsInteracted } = useOnboarding();
 
-  // Debug: Log mobile detection
-  console.log('AppNavigation: isMobile =', isMobile, 'window.innerWidth =', typeof window !== 'undefined' ? window.innerWidth : 'undefined');
-
   const handleDiscoverClick = (e: React.MouseEvent) => {
     if (location.pathname === "/") {
       e.preventDefault();

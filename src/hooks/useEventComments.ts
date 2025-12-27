@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNostr } from "@nostrify/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -81,19 +82,24 @@ export function useEventComments(
 
   // Fetch reactions for all comments
   const commentIds = comments.map((c) => c.id);
+  // Create stable query key - use sorted IDs joined as string
+  const commentIdsKey = useMemo(
+    () => [...commentIds].sort().join(','),
+    [commentIds]
+  );
   const {
     data: reactions = [],
   } = useQuery({
-    queryKey: ["reactions", eventId, eventCoordinate, ...commentIds],
+    queryKey: ["reactions", eventId, eventCoordinate, commentIdsKey],
     queryFn: async ({ signal }) => {
       if (commentIds.length === 0) return [];
-      
+
       const events = await nostr.query(
         [
           {
             kinds: [7], // Reaction events
             "#e": commentIds,
-            limit: 500,
+            limit: 200, // Reduced limit for faster queries
           },
         ],
         { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
@@ -101,6 +107,7 @@ export function useEventComments(
 
       return events as ReactionEvent[];
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: commentIds.length > 0,
   });
 
@@ -211,7 +218,7 @@ export function useEventComments(
     };
 
     // Optimistically update reactions
-    const reactionsQueryKey = ["reactions", eventId, eventCoordinate, ...commentIds];
+    const reactionsQueryKey = ["reactions", eventId, eventCoordinate, commentIdsKey];
     queryClient.setQueryData(reactionsQueryKey, (oldReactions: ReactionEvent[] = []) => {
       return [...oldReactions, optimisticReaction];
     });

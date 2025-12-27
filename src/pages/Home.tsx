@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "react-router-dom";
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { createEventIdentifier } from "@/lib/nip19Utils";
 import type { DateBasedEvent, TimeBasedEvent, LiveEvent, RoomMeeting, InteractiveRoom } from "@/lib/eventTypes";
 import { isLiveEvent, isInPersonEvent, getStreamingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
@@ -42,12 +42,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
 
 export function Home() {
-  console.log("Home component rendering");
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   
   // Use regular loading for both views - simpler and more reliable
   const { data: allEventsData, isLoading, error } = useEvents({
-    limit: 500, // Load a good amount of events
+    limit: 500, // Higher limit to get more events
     includeRSVPs: true
   });
 
@@ -75,12 +74,14 @@ export function Home() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter events based on all criteria including mute list
-  const calendarEvents = allEvents?.filter((event) => {
-    // Only include calendar event types
-    return event.kind === 31922 || event.kind === 31923 || event.kind === 30311 || event.kind === 30312 || event.kind === 30313;
-  }) as (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom)[] | undefined;
+  const calendarEvents = useMemo(() => {
+    return allEvents?.filter((event) => {
+      // Only include calendar event types
+      return event.kind === 31922 || event.kind === 31923 || event.kind === 30311 || event.kind === 30312 || event.kind === 30313;
+    }) as (DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom)[] | undefined;
+  }, [allEvents]);
 
-  const allFilteredEvents = calendarEvents
+  const allFilteredEvents = useMemo(() => calendarEvents
     ?.filter((event) => {
       // Filter out events from muted pubkeys
       if (!isMuteListLoading && isMuted(event.pubkey)) {
@@ -91,7 +92,7 @@ export function Home() {
       const startTime = (event.kind === 30311 || event.kind === 30312 || event.kind === 30313)
         ? event.tags.find((tag) => tag[0] === "starts")?.[1]
         : event.tags.find((tag) => tag[0] === "start")?.[1];
-      const endTime = event.tags.find((tag) => tag[0] === "end")?.[1] || 
+      const endTime = event.tags.find((tag) => tag[0] === "end")?.[1] ||
                       event.tags.find((tag) => tag[0] === "ends")?.[1];
       if (!startTime) return false;
 
@@ -106,7 +107,6 @@ export function Home() {
             // If start time is a short Unix timestamp (10 digits)
             const startDate = new Date(parseInt(startTime) * 1000);
             if (isNaN(startDate.getTime())) {
-              console.error("Invalid start date:", startTime);
               return false;
             }
             // Use local timezone for date-based events
@@ -121,7 +121,6 @@ export function Home() {
             if (endTime?.match(/^\d{10}$/)) {
               const endDate = new Date(parseInt(endTime) * 1000);
               if (isNaN(endDate.getTime())) {
-                console.error("Invalid end date:", endTime);
                 return false;
               }
               eventEnd = new Date(
@@ -148,7 +147,6 @@ export function Home() {
             // If start time is a long Unix timestamp (13 digits)
             const startDate = new Date(parseInt(startTime));
             if (isNaN(startDate.getTime())) {
-              console.error("Invalid start date:", startTime);
               return false;
             }
             // Use local timezone for date-based events
@@ -163,7 +161,6 @@ export function Home() {
             if (endTime?.match(/^\d{13}$/)) {
               const endDate = new Date(parseInt(endTime));
               if (isNaN(endDate.getTime())) {
-                console.error("Invalid end date:", endTime);
                 return false;
               }
               eventEnd = new Date(
@@ -190,16 +187,14 @@ export function Home() {
             // If start time is in YYYY-MM-DD format, parse in local timezone
             const [year, month, day] = startTime.split('-').map(Number);
             if (isNaN(year) || isNaN(month) || isNaN(day)) {
-              console.error("Invalid start date format:", startTime);
               return false;
             }
             const startDate = new Date(year, month - 1, day, 0, 0, 0);
             eventStart = startDate.getTime();
-            
+
             if (endTime && endTime !== startTime) {
               const [endYear, endMonth, endDay] = endTime.split('-').map(Number);
               if (isNaN(endYear) || isNaN(endMonth) || isNaN(endDay)) {
-                console.error("Invalid end date format:", endTime);
                 return false;
               }
               const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
@@ -209,8 +204,7 @@ export function Home() {
               eventEnd = endDate.getTime();
             }
           }
-        } catch (error) {
-          console.error("Error parsing dates:", error, { startTime, endTime });
+        } catch {
           return false;
         }
       } else {
@@ -326,7 +320,7 @@ export function Home() {
       };
 
       return getEventStartTime(a) - getEventStartTime(b);
-    });
+    }), [calendarEvents, isMuteListLoading, isMuted, showPastEvents, dateRange, keywordFilter, authorsMetadata, selectedCategories, eventTypeFilter]);
 
   // For grid view, limit the displayed events for pagination
   const filteredEvents = viewMode === "calendar" 
@@ -363,7 +357,6 @@ export function Home() {
     
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && canLoadMore) {
-        console.log("Loading more events via intersection observer...");
         loadMoreEvents();
       }
     }, {
@@ -374,66 +367,16 @@ export function Home() {
     if (node) observer.current.observe(node);
   }, [isLoading, canLoadMore]);
 
-  useEffect(() => {
-    console.log("Home component mounted");
-    console.log("Events state:", { 
-      calendarEvents: calendarEvents?.length || 0, 
-      allFilteredEvents: allFilteredEvents?.length || 0,
-      displayedEvents: filteredEvents?.length || 0,
-      displayedEventCount,
-      canLoadMore,
-      isLoading, 
-      error,
-      viewMode
-    });
-
-    // Debug: Check for duplicate events
-    if (calendarEvents && calendarEvents.length > 0) {
-      const eventCoordinates = new Map<string, number>();
-      const duplicates: string[] = [];
-      
-      calendarEvents.forEach(event => {
-        const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
-        if (dTag) {
-          const coordinate = `${event.kind}:${event.pubkey}:${dTag}`;
-          const count = eventCoordinates.get(coordinate) || 0;
-          eventCoordinates.set(coordinate, count + 1);
-          if (count > 0) {
-            duplicates.push(coordinate);
-          }
-        }
-      });
-      
-      if (duplicates.length > 0) {
-        console.warn("🚨 DUPLICATE EVENTS DETECTED:", duplicates);
-        console.warn("Event coordinates with counts:", Array.from(eventCoordinates.entries()).filter(([_, count]) => count > 1));
-      } else {
-        console.log("✅ No duplicate events detected");
-      }
-    }
-  }, [calendarEvents, allFilteredEvents, filteredEvents, displayedEventCount, canLoadMore, isLoading, error, viewMode]);
-
-  if (isLoading || isMuteListLoading || isAuthorsLoading) {
-    console.log("Loading events...");
+  if (isLoading) {
     return <Spinner />;
   }
 
   if (error) {
-    console.error("Error loading events:", error);
-    const errorMessage = error && typeof error === 'object' && 'message' in error 
-      ? (error as Error).message 
+    const errorMessage = error && typeof error === 'object' && 'message' in error
+      ? (error as Error).message
       : String(error);
     return <div>Error loading events: {errorMessage}</div>;
   }
-
-  console.log("Rendering events:", {
-    calendarEventsLength: calendarEvents?.length || 0,
-    allFilteredEventsLength: allFilteredEvents?.length || 0,
-    displayedEventsLength: filteredEvents?.length || 0,
-    displayedEventCount,
-    canLoadMore,
-    viewMode
-  });
 
   return (
     <div className="container px-0 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
@@ -731,6 +674,7 @@ export function Home() {
                       <img
                         src={imageUrl || "/default-calendar.png"}
                         alt={title}
+                        loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -822,28 +766,6 @@ export function Home() {
             </div>
           )}
 
-          {/* Debug info - show in grid view */}
-          {viewMode === "grid" && (
-            <div className="flex justify-center py-4">
-              <div className="text-xs text-muted-foreground space-y-2 text-center">
-                <div>Debug Info:</div>
-                <div>Total events loaded: {calendarEvents?.length || 0}</div>
-                <div>After filtering: {allFilteredEvents?.length || 0}</div>
-                <div>Currently displayed: {filteredEvents?.length || 0}</div>
-                <div>Can load more: {String(canLoadMore)}</div>
-                {canLoadMore && (
-                  <Button
-                    onClick={loadMoreEvents}
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                  >
-                    🔧 Debug: Load More
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

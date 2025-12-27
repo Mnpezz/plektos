@@ -393,7 +393,6 @@ export function getEventTimezone(
   // First, check for explicit timezone tags (NIP-52 and other standards)
   const startTzid = event.tags.find((tag) => tag[0] === "start_tzid")?.[1];
   if (startTzid && isValidTimezone(startTzid)) {
-    console.debug(`Found start_tzid timezone: ${startTzid}`);
     return startTzid;
   }
 
@@ -401,20 +400,17 @@ export function getEventTimezone(
   if (event.kind === 31923) {
     const endTzid = event.tags.find((tag) => tag[0] === "end_tzid")?.[1];
     if (endTzid && isValidTimezone(endTzid)) {
-      console.debug(`Found end_tzid timezone: ${endTzid}`);
       return endTzid;
     }
 
     // Check for other common timezone tags
     const tzid = event.tags.find((tag) => tag[0] === "tzid")?.[1];
     if (tzid && isValidTimezone(tzid)) {
-      console.debug(`Found tzid timezone: ${tzid}`);
       return tzid;
     }
 
     const timezone = event.tags.find((tag) => tag[0] === "timezone")?.[1];
     if (timezone && isValidTimezone(timezone)) {
-      console.debug(`Found timezone tag: ${timezone}`);
       return timezone;
     }
   }
@@ -423,13 +419,11 @@ export function getEventTimezone(
   if (event.kind === 31922) {
     const tzid = event.tags.find((tag) => tag[0] === "tzid")?.[1];
     if (tzid && isValidTimezone(tzid)) {
-      console.debug(`Found tzid timezone for date event: ${tzid}`);
       return tzid;
     }
 
     const timezone = event.tags.find((tag) => tag[0] === "timezone")?.[1];
     if (timezone && isValidTimezone(timezone)) {
-      console.debug(`Found timezone tag for date event: ${timezone}`);
       return timezone;
     }
   }
@@ -437,7 +431,6 @@ export function getEventTimezone(
   // Fallback to location-based timezone detection
   const location = event.tags.find((tag) => tag[0] === "location")?.[1];
   if (!location) {
-    console.debug("No timezone tags or location found for event");
     return null;
   }
 
@@ -445,23 +438,16 @@ export function getEventTimezone(
 
   // Try exact match first
   if (TIMEZONE_MAP[locationLower]) {
-    console.debug(
-      `Detected timezone from location "${location}": ${TIMEZONE_MAP[locationLower]}`
-    );
     return TIMEZONE_MAP[locationLower];
   }
 
   // Try partial matches
   for (const [key, timezone] of Object.entries(TIMEZONE_MAP)) {
     if (locationLower.includes(key)) {
-      console.debug(
-        `Detected timezone from location "${location}" (partial match "${key}"): ${timezone}`
-      );
       return timezone;
     }
   }
 
-  console.debug(`Could not detect timezone for location: ${location}`);
   return null;
 }
 
@@ -488,11 +474,7 @@ export function convertTimezone(
     const offsetDiff = (toOffset - fromOffset) * 60 * 1000;
 
     return timestamp + offsetDiff;
-  } catch (error) {
-    console.warn(
-      `Error converting timezone from ${fromTimezone} to ${toTimezone}:`,
-      error
-    );
+  } catch {
     return timestamp;
   }
 }
@@ -517,8 +499,7 @@ function getTimezoneOffset(date: Date, timezone: string): number {
     // Calculate the offset in minutes
     const offsetMs = utcTime - timezoneUtcTime;
     return Math.round(offsetMs / (60 * 1000));
-  } catch (error) {
-    console.warn(`Error getting timezone offset for ${timezone}:`, error);
+  } catch {
     return 0;
   }
 }
@@ -554,14 +535,7 @@ export function formatEventDateTime(
       throw new Error(`Invalid date created from timestamp: ${timestamp}`);
     }
     
-    // Sanity check: ensure the date is reasonable (between 1970 and 2100)
-    const year = date.getFullYear();
-    if (year < 1970 || year > 2100) {
-      console.warn(`Timestamp ${timestamp} resulted in unusual date: ${date.toISOString()}`);
-    }
-    
-  } catch (error) {
-    console.error(`Error parsing timestamp ${timestamp}:`, error);
+  } catch {
     // Fallback to current time to prevent crashes
     date = new Date();
   }
@@ -579,11 +553,8 @@ export function formatEventDateTime(
         ...formatOptions,
         timeZone: timezone,
       });
-    } catch (error) {
-      console.warn(
-        `Invalid timezone: ${timezone}, falling back to browser timezone. Error:`,
-        error
-      );
+    } catch {
+      // Invalid timezone, fall through to browser timezone
     }
   }
 
@@ -612,7 +583,6 @@ function parseTimestamp(timestampStr: string): number {
   if (timestamp < 1000000000) {
     // Less than 10 digits - definitely seconds, but very old date (before 2001)
     // This is likely an error, but we'll treat it as seconds
-    console.warn(`Timestamp ${timestamp} seems too small, treating as seconds`);
     return timestamp * 1000;
   } else if (timestamp < 10000000000) {
     // 10 digits - definitely seconds (dates between 2001-2286)
@@ -622,10 +592,9 @@ function parseTimestamp(timestampStr: string): number {
     // Let's check if treating it as seconds gives a reasonable date
     const asSeconds = new Date(timestamp * 1000);
     
-    // If treating as seconds gives a date far in the future (after 2100), 
+    // If treating as seconds gives a date far in the future (after 2100),
     // it's probably meant to be milliseconds
     if (asSeconds.getFullYear() > 2100) {
-      console.warn(`Timestamp ${timestamp} treated as milliseconds due to far future date when interpreted as seconds`);
       return timestamp;
     } else {
       return timestamp * 1000;
@@ -687,14 +656,7 @@ export function formatEventTime(
       throw new Error(`Invalid date created from timestamp: ${timestamp}`);
     }
     
-    // Sanity check: ensure the date is reasonable (between 1970 and 2100)
-    const year = date.getFullYear();
-    if (year < 1970 || year > 2100) {
-      console.warn(`Timestamp ${timestamp} resulted in unusual date: ${date.toISOString()}`);
-    }
-    
-  } catch (error) {
-    console.error(`Error parsing timestamp ${timestamp}:`, error);
+  } catch {
     // Fallback to current time to prevent crashes
     date = new Date();
   }
@@ -711,11 +673,8 @@ export function formatEventTime(
         ...formatOptions,
         timeZone: timezone,
       });
-    } catch (error) {
-      console.warn(
-        `Invalid timezone: ${timezone}, falling back to browser timezone. Error:`,
-        error
-      );
+    } catch {
+      // Invalid timezone, fall through to browser timezone
     }
   }
 
@@ -745,7 +704,6 @@ export function getTimezoneAbbreviation(
     const parts = timeZoneName.split(" ");
     return parts[parts.length - 1] || "";
   } catch {
-    console.warn(`Could not get abbreviation for timezone: ${timezone}`);
     return "";
   }
 }
@@ -860,27 +818,24 @@ export function createTimestampInTimezone(
     // Return the closest match
     return Math.floor(low / 1000);
     
-  } catch (error) {
-    console.error("Error creating timestamp in timezone:", error);
-    
+  } catch {
     // Fallback to a simpler approach
     const dateTimeString = `${dateString}T${timeString}:00`;
     const localDate = new Date(dateTimeString);
-    
+
     // Get the user's timezone offset and the target timezone offset
     const userOffset = localDate.getTimezoneOffset() * 60 * 1000; // in milliseconds
-    
+
     // Create a rough estimate by assuming the target timezone offset
     try {
       const testDate = new Date();
       const utcTime = testDate.getTime() + (testDate.getTimezoneOffset() * 60000);
       const targetTime = new Date(utcTime + getTimezoneOffsetForDate(testDate, timezone));
       const targetOffset = testDate.getTime() - targetTime.getTime();
-      
+
       const adjustedTime = localDate.getTime() + userOffset - targetOffset;
       return Math.floor(adjustedTime / 1000);
-    } catch (fallbackError) {
-      console.error("Fallback failed:", fallbackError);
+    } catch {
       return Math.floor(localDate.getTime() / 1000);
     }
   }
@@ -901,8 +856,7 @@ function getTimezoneOffsetForDate(date: Date, timezone: string): number {
     
     // The difference is the offset
     return timeInTargetTz.getTime() - timeInUtc.getTime();
-  } catch (error) {
-    console.warn(`Error getting timezone offset for ${timezone}:`, error);
+  } catch {
     return 0;
   }
 }

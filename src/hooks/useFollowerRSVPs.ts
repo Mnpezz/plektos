@@ -57,7 +57,7 @@ export function useFollowerRSVPs() {
 
       const rsvpEvents = await nostr.query(
         [rsvpFilter],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
       );
 
       // Step 2: Filter for only "accepted" RSVPs (people actually attending)
@@ -83,7 +83,7 @@ export function useFollowerRSVPs() {
             ids: eventIds,
           },
         ],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
       );
 
       // Step 5: Combine RSVPs with their corresponding events

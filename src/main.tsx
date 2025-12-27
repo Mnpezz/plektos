@@ -11,9 +11,9 @@ import "./index.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: true,
-      staleTime: 0, // Always consider data stale
-      gcTime: 0, // Don't garbage collect
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
@@ -28,8 +28,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <NostrProvider
             relays={[
               "wss://relay.primal.net",
-              "wss://relay.nostr.band",
               "wss://relay.damus.io",
+              "wss://nos.lol",
+              "wss://relay.nostr.band",
               "wss://relay.ditto.pub",
             ]}
           >

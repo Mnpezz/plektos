@@ -44,8 +44,8 @@ export function useOnboarding() {
   const setOnboardingState = (state: OnboardingState) => {
     try {
       localStorage.setItem(onboardingKey, JSON.stringify(state));
-    } catch (error) {
-      console.warn('Failed to save onboarding state:', error);
+    } catch {
+      // Silently fail if storage is unavailable
     }
   };
 
@@ -63,8 +63,8 @@ export function useOnboarding() {
   const setUserHasInteracted = (hasInteracted: boolean) => {
     try {
       localStorage.setItem(interactionKey, JSON.stringify(hasInteracted));
-    } catch (error) {
-      console.warn('Failed to save user interaction state:', error);
+    } catch {
+      // Silently fail if storage is unavailable
     }
   };
 
@@ -88,12 +88,9 @@ export function useOnboarding() {
           const userSpecificData = localStorage.getItem(onboardingKey);
           if (!userSpecificData) {
             localStorage.setItem(onboardingKey, defaultOnboardingData);
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Migrated onboarding data from default to user-specific key');
-            }
           }
-        } catch (error) {
-          console.warn('Failed to migrate onboarding data:', error);
+        } catch {
+          // Silently fail
         }
       }
 
@@ -103,12 +100,9 @@ export function useOnboarding() {
           const userSpecificData = localStorage.getItem(interactionKey);
           if (!userSpecificData) {
             localStorage.setItem(interactionKey, defaultInteractionData);
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Migrated interaction data from default to user-specific key');
-            }
           }
-        } catch (error) {
-          console.warn('Failed to migrate interaction data:', error);
+        } catch {
+          // Silently fail
         }
       }
     }
@@ -118,9 +112,6 @@ export function useOnboarding() {
   }, [user?.pubkey, onboardingKey, interactionKey]);
 
   const completeOnboarding = () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('completeOnboarding called for user:', user?.pubkey?.slice(0, 8) + '...');
-    }
     const currentState = getOnboardingState();
     setOnboardingState({
       ...currentState,
@@ -173,107 +164,27 @@ export function useOnboarding() {
   // Auto-complete onboarding for users with existing profiles
   useEffect(() => {
     if (user && hasExistingProfile && !onboardingState.hasCompletedOnboarding) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Auto-completing onboarding for existing user with profile:', user.pubkey?.slice(0, 8) + '...');
-      }
       completeOnboarding();
     }
   }, [user, hasExistingProfile, onboardingState.hasCompletedOnboarding]);
 
   // Determine if we should show onboarding - check localStorage and existing profiles
   const shouldShowOnboarding = (() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('shouldShowOnboarding calculation:', {
-        hasUser: !!user,
-        userPubkey: user?.pubkey?.slice(0, 8) + '...',
-        onboardingKey,
-        interactionKey,
-        hasCompletedOnboarding: onboardingState.hasCompletedOnboarding,
-        userHasInteracted,
-        hasExistingProfile,
-        onboardingState,
-      });
-    }
-
     // Must have a user to show onboarding
-    if (!user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Not showing onboarding: no user');
-      }
-      return false;
-    }
+    if (!user) return false;
 
     // If user has completed onboarding, never show it again
-    if (onboardingState.hasCompletedOnboarding) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Not showing onboarding: already completed', {
-          hasCompletedOnboarding: onboardingState.hasCompletedOnboarding,
-          onboardingState
-        });
-      }
-      return false;
-    }
+    if (onboardingState.hasCompletedOnboarding) return false;
 
     // If user has an existing profile, don't show onboarding
-    if (hasExistingProfile) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Not showing onboarding: user has existing profile');
-      }
-      return false;
-    }
+    if (hasExistingProfile) return false;
 
     // If this user has already interacted with the app meaningfully, don't show onboarding
-    if (userHasInteracted) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Not showing onboarding: user has already interacted');
-      }
-      return false;
-    }
+    if (userHasInteracted) return false;
 
     // For new users who haven't completed onboarding or interacted, show onboarding
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Showing onboarding: new user');
-    }
     return true;
   })();
-
-  // Debug logging (only in development)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Onboarding Debug:', {
-        user: !!user,
-        userPubkey: user?.pubkey?.slice(0, 8) + '...',
-        hasCompletedOnboarding: onboardingState.hasCompletedOnboarding,
-        userHasInteracted,
-        shouldShowOnboarding,
-      });
-
-      // Add global helpers for debugging
-      (window as {
-        resetPlektosOnboarding?: () => void;
-        checkPlektosOnboarding?: () => void;
-      }).resetPlektosOnboarding = () => {
-        localStorage.removeItem(onboardingKey);
-        localStorage.removeItem(interactionKey);
-        console.log('Onboarding state cleared! Refresh the page.');
-      };
-
-      (window as {
-        resetPlektosOnboarding?: () => void;
-        checkPlektosOnboarding?: () => void;
-      }).checkPlektosOnboarding = () => {
-        const onboardingData = localStorage.getItem(onboardingKey);
-        const interactionData = localStorage.getItem(interactionKey);
-        console.log('Current localStorage state:', {
-          onboardingKey,
-          interactionKey,
-          onboardingData: onboardingData ? JSON.parse(onboardingData) : null,
-          interactionData: interactionData ? JSON.parse(interactionData) : null,
-          shouldShow: shouldShowOnboarding,
-        });
-      };
-    }
-  }, [user, onboardingState.hasCompletedOnboarding, userHasInteracted, shouldShowOnboarding, interactionKey, onboardingKey]);
 
   return {
     onboardingState,

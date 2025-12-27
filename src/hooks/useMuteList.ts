@@ -36,7 +36,7 @@ export function useMuteList() {
             limit: 10, // Get more events to ensure we have the latest
           },
         ],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]) }
       );
       
       if (events.length === 0) {

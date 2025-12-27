@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { useNostr } from "@nostrify/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
+import { getCachedFollowList, cacheFollowList } from "@/lib/indexedDB";
 import type { NostrEvent } from "@nostrify/nostrify";
 
 export interface FollowListEvent extends NostrEvent {
@@ -17,6 +19,24 @@ export function useFollowList() {
   const { user } = useCurrentUser();
   const { mutateAsync: publishEvent } = useNostrPublish();
   const queryClient = useQueryClient();
+  const [cachedData, setCachedData] = useState<FollowListEvent | null | undefined>(undefined);
+
+  // Load cached follow list on mount (instant)
+  useEffect(() => {
+    async function loadCache() {
+      if (!user?.pubkey) return;
+
+      try {
+        const cached = await getCachedFollowList(user.pubkey);
+        if (cached) {
+          setCachedData(cached.event as FollowListEvent);
+        }
+      } catch {
+        // Cache read failed, continue without cache
+      }
+    }
+    loadCache();
+  }, [user?.pubkey]);
 
   // Fetch the user's follow list
   const {
@@ -33,22 +53,35 @@ export function useFollowList() {
           {
             kinds: [3], // NIP-02 contact list
             authors: [user.pubkey],
-            limit: 10, // Get more events to ensure we have the latest
+            limit: 1,
           },
         ],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]) }
       );
-      
+
       if (events.length === 0) {
         return null;
       }
-      
+
       // Sort by created_at descending to ensure we get the most recent
       const sortedEvents = events.sort((a, b) => b.created_at - a.created_at);
-      return sortedEvents[0] as FollowListEvent;
+      const latestEvent = sortedEvents[0] as FollowListEvent;
+
+      // Extract followed pubkeys for caching
+      const followedPubkeys = latestEvent.tags
+        .filter((tag) => tag[0] === "p")
+        .map((tag) => tag[1]);
+
+      // Cache follow list in background (non-blocking)
+      cacheFollowList(user.pubkey, latestEvent, followedPubkeys).catch(() => {});
+
+      return latestEvent;
     },
+    // Use cached data as placeholder for instant display
+    placeholderData: cachedData,
     enabled: !!user?.pubkey,
-    staleTime: 30000, // Consider data stale after 30 seconds
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Get the list of followed pubkeys from the follow list
@@ -69,7 +102,7 @@ export function useFollowList() {
 
     // Get current follow list tags
     const currentTags = followList?.tags || [];
-    
+
     // Check if already following
     if (currentTags.some(tag => tag[0] === "p" && tag[1] === pubkey)) {
       return; // Already following
