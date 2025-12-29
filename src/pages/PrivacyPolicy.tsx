@@ -6,7 +6,7 @@ export function PrivacyPolicy() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Privacy Policy</CardTitle>
-          <p className="text-sm text-muted-foreground">Last updated: December 2024</p>
+          <p className="text-sm text-muted-foreground">Last updated: December 28, 2025</p>
         </CardHeader>
         <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-6">
           <section>
