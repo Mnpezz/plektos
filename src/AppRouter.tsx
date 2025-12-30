@@ -7,6 +7,7 @@ import { MyTickets } from "@/pages/MyTickets";
 import { SocialFeed } from "@/pages/SocialFeed";
 import { TestNotifications } from "@/pages/TestNotifications";
 import { PrivacyPolicy } from "@/pages/PrivacyPolicy";
+import { RemoteLoginSuccess } from "@/pages/RemoteLoginSuccess";
 
 export default function AppRouter() {
   return (
@@ -19,6 +20,7 @@ export default function AppRouter() {
       <Route path="/feed" element={<SocialFeed />} />
       <Route path="/test-notifications" element={<TestNotifications />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/remoteloginsuccess" element={<RemoteLoginSuccess />} />
     </Routes>
   );
 }
