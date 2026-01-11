@@ -63,7 +63,7 @@ export function Home() {
   }, [allEvents]);
 
   // Get metadata for all authors
-  const { data: authorsMetadata = {}, isLoading: isAuthorsLoading } = useAuthorsMetadata(uniquePubkeys);
+  const { data: authorsMetadata = {} } = useAuthorsMetadata(uniquePubkeys);
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [keywordFilter, setKeywordFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);

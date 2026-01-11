@@ -37,7 +37,6 @@ export function useZap() {
 
   const zap = useCallback(
     async (options: ZapOptions) => {
-      try {
         if (!user?.signer) {
           throw new Error("Please log in to send zaps");
         }
@@ -252,9 +251,6 @@ export function useZap() {
         }
         
         return paymentResult;
-      } catch (error) {
-        throw error;
-      }
     },
     [user]
   );

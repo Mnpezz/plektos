@@ -36,17 +36,12 @@ import { EditEvent } from "@/components/EditEvent";
 import { ZapButton } from "@/components/ZapButton";
 import { ZapReceipts } from "@/components/ZapReceipts";
 import { ContactOrganizerDialog } from "@/components/ContactOrganizerDialog";
+import { ShareEventDialog } from "@/components/ShareEventDialog";
 import { EventComments } from "@/components/EventComments";
 import { EventCategories } from "@/components/EventCategories";
 import { downloadICS } from "@/lib/icsExport";
-import { decodeEventIdentifier, createEventUrl } from "@/lib/nip19Utils";
+import { decodeEventIdentifier } from "@/lib/nip19Utils";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
-import {
-  getEventTimezone,
-  formatEventDateTime,
-  formatEventTime,
-  getTimezoneAbbreviation,
-} from "@/lib/eventTimezone";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import { cn } from "@/lib/utils";
 import { isLiveEvent, getViewingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
@@ -119,13 +114,12 @@ export function EventDetail() {
     useSingleEvent(eventId);
   const { user } = useCurrentUser();
   const { mutate: publishRSVP } = useNostrPublish();
-  const { mutate: publishShare } = useNostrPublish();
   const [rsvpStatus, setRsvpStatus] = useState<
     "accepted" | "declined" | "tentative"
   >("accepted");
   const [rsvpNote, setRsvpNote] = useState("");
   const [isSubmittingRSVP, setIsSubmittingRSVP] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -382,107 +376,6 @@ export function EventDetail() {
     }
   };
 
-  const handleShareEvent = async () => {
-    if (!user || !event) return;
-
-    setIsSharing(true);
-    try {
-      const title =
-        event.tags.find((tag) => tag[0] === "title")?.[1] || "Untitled Event";
-      const location = event.tags.find((tag) => tag[0] === "location")?.[1];
-      const startTime = event.tags.find((tag) => tag[0] === "start")?.[1];
-      const imageUrl = event.tags.find((tag) => tag[0] === "image")?.[1];
-
-      // Construct the share message
-      let shareMessage = `🎉 Join me at ${title}!\n\n`;
-
-      if (startTime) {
-        const eventTimezone = getEventTimezone(event);
-        const timezoneAbbr = getTimezoneAbbreviation(
-          eventTimezone,
-          new Date(parseInt(startTime) * 1000).getTime()
-        );
-
-        if (event.kind === 31922) {
-          // For date-only events, format in event's timezone
-          let date;
-          if (startTime.match(/^\d{10}$/)) {
-            date = new Date(parseInt(startTime) * 1000);
-          } else if (startTime.match(/^\d{13}$/)) {
-            date = new Date(parseInt(startTime));
-          } else {
-            const [year, month, day] = startTime.split("-").map(Number);
-            date = new Date(year, month - 1, day);
-          }
-
-          shareMessage += `📅 ${formatEventDateTime(
-            date.getTime(),
-            eventTimezone
-          )}${timezoneAbbr}\n`;
-        } else {
-          // For time-based events, format in event's timezone
-          const startDate = new Date(parseInt(startTime) * 1000);
-          const endTime = event.tags.find((tag) => tag[0] === "end")?.[1];
-
-          if (endTime) {
-            const endDate = new Date(parseInt(endTime) * 1000);
-            const startDateTime = formatEventDateTime(
-              startDate.getTime(),
-              eventTimezone,
-              {
-                hour: "numeric",
-                minute: "numeric",
-              }
-            );
-            const endTimeOnly = formatEventTime(
-              endDate.getTime(),
-              eventTimezone
-            );
-            shareMessage += `📅 ${startDateTime} - ${endTimeOnly}${timezoneAbbr}\n`;
-          } else {
-            const startDateTime = formatEventDateTime(
-              startDate.getTime(),
-              eventTimezone,
-              {
-                hour: "numeric",
-                minute: "numeric",
-              }
-            );
-            shareMessage += `📅 ${startDateTime}${timezoneAbbr}\n`;
-          }
-        }
-      }
-
-      if (location) {
-        shareMessage += `📍 ${location}\n`;
-      }
-
-      shareMessage += `\n${event.content}\n\n`;
-
-      // Create the appropriate identifier (naddr for replaceable events, nevent for regular events)
-      shareMessage += `🔗 ${createEventUrl(event, "https://plektos.app")}`;
-
-      // Add image if available
-      const tags: [string, string][] = [];
-      if (imageUrl) {
-        tags.push(["image", imageUrl]);
-      }
-
-      await publishShare({
-        kind: 1,
-        content: shareMessage,
-        tags,
-      });
-
-      toast.success("Event shared successfully!");
-    } catch (error) {
-      toast.error("Failed to share event");
-      console.error("Error sharing event:", error);
-    } finally {
-      setIsSharing(false);
-    }
-  };
-
   return (
     <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
       <Card className="rounded-none sm:rounded-lg">
@@ -534,12 +427,11 @@ export function EventDetail() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleShareEvent}
-                  disabled={isSharing}
+                  onClick={() => setShareDialogOpen(true)}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
                 >
                   <Share2 className="h-4 w-4" />
-                  {isSharing ? "..." : "Share"}
+                  Share
                 </Button>
               </div>
             )}
@@ -838,6 +730,15 @@ export function EventDetail() {
             onDeleted={() => navigate("/")}
           />
         </div>
+      )}
+
+      {/* Share Event Dialog */}
+      {user && (
+        <ShareEventDialog
+          event={event}
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+        />
       )}
     </div>
   );
