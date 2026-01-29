@@ -9,8 +9,7 @@ const BOOTSTRAP_RELAYS = [
   "wss://relay.damus.io",
   "wss://relay.primal.net", 
   "wss://nos.lol",
-  "wss://relay.nostr.band",
-  "wss://ditto.pub/relay",
+  "wss://relay.ditto.pub",
 ];
 
 export function useEnhancedNostrPublish(): UseMutationResult<NostrEvent> {

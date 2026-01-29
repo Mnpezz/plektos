@@ -28,19 +28,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           setNotifications(parsed);
         }
       }
-    } catch (error) {
-      console.error('Failed to load notifications from storage:', error);
+    } catch {
+      // Silently fail if storage is unavailable
     }
   }, []);
 
   // Save to localStorage whenever notifications change
   useEffect(() => {
     try {
-      console.log('Saving notifications to localStorage:', notifications);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-      console.log('Successfully saved to localStorage');
-    } catch (error) {
-      console.error('Failed to save notifications to storage:', error);
+    } catch {
+      // Silently fail if storage is unavailable
     }
   }, [notifications]);
 
@@ -69,21 +67,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const markAsRead = useCallback((notificationId: string) => {
-    console.log('Marking notification as read:', notificationId);
-    setNotifications(prev => {
-      const updated = prev.map(n => n.id === notificationId ? { ...n, read: true } : n);
-      console.log('Updated notifications:', updated);
-      return updated;
-    });
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+    );
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    console.log('Marking all notifications as read');
-    setNotifications(prev => {
-      const updated = prev.map(n => ({ ...n, read: true }));
-      console.log('All notifications marked as read:', updated);
-      return updated;
-    });
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
   const clearAll = useCallback(() => {

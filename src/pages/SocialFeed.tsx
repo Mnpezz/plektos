@@ -71,7 +71,6 @@ export function SocialFeed() {
 
     // Set up periodic refresh every 2 minutes
     const refreshInterval = setInterval(() => {
-      console.log('Auto-refreshing social feed...');
       refetch();
     }, 2 * 60 * 1000); // 2 minutes
 

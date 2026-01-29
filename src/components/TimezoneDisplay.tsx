@@ -228,43 +228,43 @@ export function TimezoneDisplay({
 
   if (!showLocalTime || !localTime || isLocalTimezone) {
     return (
-      <div className={`space-y-1 ${className}`}>
-        <div className="flex items-center gap-2">
+      <span className={`inline-flex flex-col gap-1 ${className}`}>
+        <span className="inline-flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <span>{eventTime}</span>
-        </div>
+        </span>
         {noTimezoneDetected && (
-          <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-2">
             <Globe className="h-4 w-4 text-amber-500" />
             <span className="text-xs text-amber-600">
               Timezone not specified - showing in your local time
             </span>
-          </div>
+          </span>
         )}
-      </div>
+      </span>
     );
   }
 
   return (
-    <div className={`space-y-1 ${className}`}>
-      <div className="flex items-center gap-2">
+    <span className={`inline-flex flex-col gap-1 ${className}`}>
+      <span className="inline-flex items-center gap-2">
         <Clock className="h-4 w-4 text-muted-foreground" />
         <span>{eventTime}</span>
-      </div>
-      <div className="flex items-center gap-2">
+      </span>
+      <span className="inline-flex items-center gap-2">
         <Globe className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">
           {localTime} (your time)
         </span>
-      </div>
+      </span>
       {noTimezoneDetected && (
-        <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-2">
           <Globe className="h-4 w-4 text-amber-500" />
           <span className="text-xs text-amber-600">
             Event timezone not specified
           </span>
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }

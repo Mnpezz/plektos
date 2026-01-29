@@ -21,3 +21,19 @@ dist-ssr
 *.sln
 *.sw?
 test-build
+
+# Capacitor Android
+android/keystore.properties
+android/*.jks
+android/*.keystore
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
+
+# Capacitor iOS
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/DerivedData/
