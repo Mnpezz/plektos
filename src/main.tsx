@@ -30,7 +30,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               "wss://relay.primal.net",
               "wss://relay.damus.io",
               "wss://nos.lol",
-              "wss://relay.nostr.band",
               "wss://relay.ditto.pub",
             ]}
           >

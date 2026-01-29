@@ -1,7 +1,7 @@
 {
   "name": "plektos",
   "private": true,
-  "version": "0.5.7",
+  "version": "0.5.8",
   "type": "module",
   "scripts": {
     "dev": "npm i && vite",
@@ -22,8 +22,8 @@
     "@fontsource-variable/outfit": "^5.2.6",
     "@getalby/sdk": "^5.1.0",
     "@hookform/resolvers": "^3.9.0",
-    "@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.46.1",
-    "@nostrify/react": "npm:@jsr/nostrify__react@^0.2.5",
+    "@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.46.5",
+    "@nostrify/react": "npm:@jsr/nostrify__react@^0.2.9",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
