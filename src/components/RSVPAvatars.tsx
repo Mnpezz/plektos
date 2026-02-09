@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthor } from "@/hooks/useAuthor";
 import { genUserName } from "@/lib/genUserName";
@@ -35,7 +36,7 @@ export function RSVPAvatars({ pubkeys, maxVisible = 3 }: RSVPAvatarsProps) {
   );
 }
 
-function RSVPAvatar({ pubkey }: { pubkey: string }) {
+const RSVPAvatar = memo(function RSVPAvatar({ pubkey }: { pubkey: string }) {
   const { data: author } = useAuthor(pubkey);
   const displayName = author?.metadata?.name ?? genUserName(pubkey);
   const avatarUrl = author?.metadata?.picture;
@@ -60,4 +61,4 @@ function RSVPAvatar({ pubkey }: { pubkey: string }) {
       </Tooltip>
     </TooltipProvider>
   );
-}
+});

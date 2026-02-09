@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Heart } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,7 +31,7 @@ function removeImageUrls(content: string): string {
   return content.replace(regex, '').trim();
 }
 
-export function CommentItem({ 
+export const CommentItem = memo(function CommentItem({ 
   comment, 
   likeCount, 
   hasUserLiked, 
@@ -110,4 +111,4 @@ export function CommentItem({
       </div>
     </div>
   );
-}
+});

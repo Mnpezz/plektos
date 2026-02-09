@@ -20,6 +20,14 @@ export default defineConfig(() => ({
         assetFileNames: 'assets/[name]-[hash][extname]',
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
+        manualChunks: {
+          // Vendor chunks: these change rarely and cache well
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-popover', '@radix-ui/react-avatar'],
+          'vendor-nostr': ['@nostrify/nostrify', '@nostrify/react', 'nostr-tools'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-map': ['leaflet', 'react-leaflet'],
+        },
       },
     },
   },

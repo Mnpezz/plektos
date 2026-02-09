@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useEvents, useSingleEvent } from "@/lib/eventUtils";
+import { useSingleEvent } from "@/lib/eventUtils";
+import { useEventRSVPs } from "@/hooks/useEventRSVPs";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Button } from "@/components/ui/button";
@@ -105,11 +106,6 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const {
-    data: events,
-    isLoading: isLoadingEvents,
-    refetch: refetchEvents,
-  } = useEvents({ limit: 500, includeRSVPs: true });
   const { data: singleEvent, isLoading: isLoadingSingleEvent } =
     useSingleEvent(eventId);
   const { user } = useCurrentUser();
@@ -124,58 +120,27 @@ export function EventDetail() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Determine overall loading state
-  const isLoading = isLoadingEvents || isLoadingSingleEvent;
-
-  // Decode the event identifier and get target event
-  let targetEvent: DateBasedEvent | TimeBasedEvent | LiveEvent | null = null;
+  // Decode the event identifier
   let eventIdFromIdentifier: string | undefined;
   let decodingError: string | null = null;
 
   if (eventId) {
     try {
       const decodedEvent = decodeEventIdentifier(eventId);
-
       if (decodedEvent.type === "naddr") {
-        // For replaceable events, find by coordinate (kind:pubkey:d)
-        const { kind, pubkey, identifier } = decodedEvent.data;
-        targetEvent = events?.find(
-          (e) =>
-            e.kind === kind &&
-            e.pubkey === pubkey &&
-            e.tags.some((tag) => tag[0] === "d" && tag[1] === identifier)
-        ) as DateBasedEvent | TimeBasedEvent | LiveEvent | null;
-
-        // If not found in events list, try the single event result
-        if (!targetEvent && singleEvent) {
-          targetEvent = singleEvent;
-        }
-
-        // Store the event ID for RSVP filtering
-        eventIdFromIdentifier = targetEvent?.id;
+        // For replaceable events, the event ID comes from the fetched result
+        eventIdFromIdentifier = singleEvent?.id;
       } else if (
         decodedEvent.type === "nevent" ||
         decodedEvent.type === "note" ||
         decodedEvent.type === "raw"
       ) {
-        // For regular events, find by event ID
         const eventIdDecoded =
           decodedEvent.type === "raw"
             ? decodedEvent.data
             : decodedEvent.type === "note"
             ? decodedEvent.data
             : decodedEvent.data.id;
-        targetEvent = events?.find((e) => e.id === eventIdDecoded) as
-          | DateBasedEvent
-          | TimeBasedEvent
-          | LiveEvent
-          | null;
-
-        // If not found in events list, try the single event result
-        if (!targetEvent && singleEvent) {
-          targetEvent = singleEvent;
-        }
-
         eventIdFromIdentifier = eventIdDecoded;
       }
     } catch (error) {
@@ -186,7 +151,7 @@ export function EventDetail() {
     decodingError = "No event identifier provided";
   }
 
-  const event = targetEvent as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
+  const event = singleEvent as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
 
   // Extract event participants from p tags (NIP-52)
   const eventParticipants = event?.tags
@@ -204,17 +169,12 @@ export function EventDetail() {
   const imageUrl = event?.tags.find((tag) => tag[0] === "image")?.[1];
   const eventIdentifier = event?.tags.find((tag) => tag[0] === "d")?.[1];
 
-  // Filter RSVP events and process attendee data
+  // Fetch RSVPs for this specific event (targeted query instead of fetching all events)
   const eventAddress = eventIdentifier ? `${event?.kind}:${event?.pubkey}:${eventIdentifier}` : null;
-  const rsvpEvents = (events || [])
-    .filter((e): e is EventRSVP => e.kind === 31925)
-    .filter((e) => {
-      // Match by event ID (e tag) for current version
-      const hasEventId = e.tags.some((tag) => tag[0] === "e" && tag[1] === eventIdFromIdentifier);
-      // Match by address coordinate (a tag) for all versions of replaceable events
-      const hasAddress = eventAddress && e.tags.some((tag) => tag[0] === "a" && tag[1] === eventAddress);
-      return hasEventId || hasAddress;
-    });
+  const { data: rsvpEvents = [], refetch: refetchRSVPs } = useEventRSVPs(eventIdFromIdentifier, eventAddress);
+
+  // Determine overall loading state
+  const isLoading = isLoadingSingleEvent;
 
   // Get most recent RSVP for each user
   const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
@@ -260,13 +220,13 @@ export function EventDetail() {
     setIsRefreshing(true);
     try {
       // Invalidate all related queries
-      await queryClient.invalidateQueries({ queryKey: ["events"] });
-      await queryClient.invalidateQueries({ queryKey: ["event"] });
+      await queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+      await queryClient.invalidateQueries({ queryKey: ["eventRSVPs"] });
       await queryClient.invalidateQueries({ queryKey: ["comments"] });
       await queryClient.invalidateQueries({ queryKey: ["reactions"] });
 
-      // Force a refetch of events
-      await refetchEvents();
+      // Force a refetch of RSVPs
+      await refetchRSVPs();
 
       toast.success("Event details refreshed!");
     } catch (error) {
@@ -363,8 +323,8 @@ export function EventDetail() {
           onSuccess: () => {
             toast.success("RSVP submitted successfully!");
             setRsvpNote("");
-            // Invalidate and refetch events
-            queryClient.invalidateQueries({ queryKey: ["events"] });
+            // Invalidate and refetch RSVPs for this event
+            queryClient.invalidateQueries({ queryKey: ["eventRSVPs"] });
           },
         }
       );

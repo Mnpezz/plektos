@@ -201,7 +201,7 @@ export function ParticipantSearch({
       return results;
     },
     enabled: !!searchQuery && (searchQuery.length >= 3 || searchQuery.startsWith("npub1") || (searchQuery.includes('@') && searchQuery.split('@').length === 2)),
-    staleTime: 0, // No caching for debugging
+    staleTime: 2 * 60 * 1000, // 2 minutes
     retry: 1,
   });
 

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ const ROLE_OPTIONS = [
   { value: "facilitator", label: "Facilitator" },
 ];
 
-export function ParticipantItem({ participant, onRoleChange, onRemove }: ParticipantItemProps) {
+export const ParticipantItem = memo(function ParticipantItem({ participant, onRoleChange, onRemove }: ParticipantItemProps) {
   // Automatically load metadata if not present
   const { data: authorData } = useAuthor(participant.pubkey);
 
@@ -98,4 +99,4 @@ export function ParticipantItem({ participant, onRoleChange, onRemove }: Partici
       </CardContent>
     </Card>
   );
-}
+});

@@ -7,7 +7,6 @@ import NostrProvider from "@/components/NostrProvider";
 import { App } from "./App";
 import "@fontsource-variable/outfit";
 import "./index.css";
-import "leaflet/dist/leaflet.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
