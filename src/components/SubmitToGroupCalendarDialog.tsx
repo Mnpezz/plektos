@@ -12,16 +12,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { CalendarDays, Loader2, Plus, Check, Minus } from "lucide-react";
+import { CalendarDays, Loader2, Plus, Check, Minus, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export interface SubmitToGroupCalendarDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   calendarCoordinate: string;
+  rejectedCoordinates?: string[];
 }
 
-export function SubmitToGroupCalendarDialog({ open, onOpenChange, calendarCoordinate }: SubmitToGroupCalendarDialogProps) {
+export function SubmitToGroupCalendarDialog({ open, onOpenChange, calendarCoordinate, rejectedCoordinates = [] }: SubmitToGroupCalendarDialogProps) {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
   const { mutate: createEvent } = useNostrPublish();
@@ -122,36 +123,56 @@ export function SubmitToGroupCalendarDialog({ open, onOpenChange, calendarCoordi
               const title = event.tags.find((t: string[]) => t[0] === 'title')?.[1] || 'Untitled Event';
               const isProcessing = processingId === event.id;
 
+              // Calculate its coordinate
+              const isReplaceable = event.kind >= 30000 && event.kind < 40000;
+              const dTag = event.tags.find((t: string[]) => t[0] === 'd')?.[1];
+              const activeEventCoordinate = isReplaceable && dTag ? `${event.kind}:${event.pubkey}:${dTag}` : event.id;
+
               // Check if it already has the 'a' tag for this calendar
               const isAlreadySubmitted = event.tags.some((t: string[]) => t[0] === 'a' && t[1] === calendarCoordinate);
+
+              // Check if the calendar owner has blacklisted it
+              const isDenied = rejectedCoordinates.includes(activeEventCoordinate) || rejectedCoordinates.includes(event.id);
 
               return (
                 <div
                   key={event.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isAlreadySubmitted ? 'bg-primary/5 border-primary/20' : 'bg-card hover:bg-muted/50'
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isDenied ? 'bg-destructive/5 border-destructive/20 opacity-80 cursor-not-allowed'
+                      : isAlreadySubmitted ? 'bg-primary/5 border-primary/20'
+                        : 'bg-card hover:bg-muted/50'
                     }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden flex-1">
-                    <div className={`p-2 rounded-full shrink-0 ${isAlreadySubmitted ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                    <div className={`p-2 rounded-full shrink-0 ${isDenied ? 'bg-destructive/10 text-destructive'
+                        : isAlreadySubmitted ? 'bg-primary/20 text-primary'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
                       <CalendarDays className="h-4 w-4" />
                     </div>
                     <div className="truncate pr-4 border-r">
-                      <p className="font-medium truncate">{title}</p>
+                      <p className={`font-medium truncate ${isDenied && 'text-muted-foreground line-through'}`}>{title}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {isAlreadySubmitted ? 'Submitted' : 'Not submitted'}
+                        {isDenied ? 'Denied by Organizer' : isAlreadySubmitted ? 'Submitted' : 'Not submitted'}
                       </p>
                     </div>
                   </div>
 
                   <Button
-                    variant={isAlreadySubmitted ? "outline" : "secondary"}
+                    variant={isDenied ? "ghost" : isAlreadySubmitted ? "outline" : "secondary"}
                     size="sm"
-                    className={`ml-3 shrink-0 ${isAlreadySubmitted ? 'text-destructive hover:text-destructive' : ''}`}
-                    onClick={() => handleToggleEvent(event, isAlreadySubmitted)}
-                    disabled={isProcessing}
+                    className={`ml-3 shrink-0 ${isDenied ? 'text-destructive font-semibold cursor-not-allowed' : isAlreadySubmitted ? 'text-destructive hover:text-destructive' : ''}`}
+                    onClick={() => {
+                      if (!isDenied) handleToggleEvent(event, isAlreadySubmitted);
+                    }}
+                    disabled={isProcessing || isDenied}
                   >
                     {isProcessing ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isDenied ? (
+                      <>
+                        <ShieldAlert className="h-4 w-4 mr-1" />
+                        Denied
+                      </>
                     ) : isAlreadySubmitted ? (
                       <>
                         <Minus className="h-4 w-4 mr-1" />
