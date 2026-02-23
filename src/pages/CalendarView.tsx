@@ -148,20 +148,39 @@ export function CalendarView() {
     : null;
 
   // Query events that reference this calendar via an `a` tag OR events specifically included by the calendar
-  // Query events that reference this calendar via an `a` tag OR events specifically included by the calendar
   const { data = { approved: [], pending: [] }, isLoading: isLoadingEvents } = useQuery({
     queryKey: ['calendarEvents', calendarCoordinate, calendarData?.events],
     enabled: !!nostr && !!calendarCoordinate && !!calendarData,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // 1. Find events that declare they belong to this calendar
-      const filters: any[] = [
-        {
-          kinds: [31922, 31923],
-          '#a': [calendarCoordinate!]
-        }
-      ];
+      const baseFilter: any = {
+        kinds: [31922, 31923],
+        '#a': [calendarCoordinate!]
+      };
 
-      // 2. Map explicit events that this calendar references
+      const filters: any[] = [baseFilter];
+
+      // 2. Add auto-include tag queries
+      if (calendarData!.hashtags && calendarData!.hashtags.length > 0) {
+        filters.push({
+          kinds: [31922, 31923],
+          '#t': calendarData!.hashtags
+        });
+      }
+
+      if (calendarData!.locations && calendarData!.locations.length > 0) {
+        // Send a separate filter for EACH location to avoid relay confusion with array of strings
+        calendarData!.locations.forEach((loc) => {
+          if (loc && loc.trim() !== '') {
+            filters.push({
+              kinds: [31922, 31923],
+              '#location': [loc]
+            });
+          }
+        });
+      }
+
+      // 3. Map explicit events that this calendar references
       const explicitRefs = calendarData!.events || [];
       const rejectedRefs = calendarData!.rejected || [];
       const explicitIds: string[] = [];
@@ -188,7 +207,22 @@ export function CalendarView() {
         });
       }
 
-      const events = await nostr.query(filters);
+      // Log the filters being sent out so we can debug them in the console
+      console.log("Calendar View: Fetching with filters:", filters);
+
+      // Only run the query if we have actual filters to fetch from
+      if (filters.length === 0) {
+        return { approved: [], pending: [] };
+      }
+
+      // Add a timeout to prevent infinite loading if relays are unresponsive
+      const fetchSignal = AbortSignal.any([signal, AbortSignal.timeout(5000)]);
+      let events: any[] = [];
+      try {
+        events = await nostr.query(filters, { signal: fetchSignal });
+      } catch (err) {
+        console.warn("Calendar View query timed out or failed:", err);
+      }
 
       // Deduplicate raw nostr events by their ID
       const uniqueEventsMap = new Map();
@@ -213,7 +247,7 @@ export function CalendarView() {
       });
 
       // Segregate into Approved vs Pending
-      // Approved = implicitly in the calendarData.events array
+      // Approved = implicitly in the calendarData.events array or matching auto-include filters
       const approved: any[] = [];
       const pending: any[] = [];
 
@@ -222,9 +256,28 @@ export function CalendarView() {
         const dTag = event.tags.find((t: string[]) => t[0] === 'd')?.[1];
         const coord = isReplaceable && dTag ? `${event.kind}:${event.pubkey}:${dTag}` : event.id;
 
-        if (explicitRefs.includes(coord) || explicitRefs.includes(event.id)) {
+        const isExplicitlyApproved = explicitRefs.includes(coord) || explicitRefs.includes(event.id);
+        const isExplicitlyRejected = rejectedRefs.includes(coord) || rejectedRefs.includes(event.id);
+
+        let isAutoIncluded = false;
+
+        if (calendarData!.hashtags && calendarData!.hashtags.length > 0) {
+          const eventHashtags = event.tags.filter((t: any) => t[0] === 't').map((t: any) => t[1].toLowerCase());
+          if (calendarData!.hashtags.some((tag: string) => eventHashtags.includes(tag.toLowerCase()))) {
+            isAutoIncluded = true;
+          }
+        }
+
+        if (calendarData!.locations && calendarData!.locations.length > 0) {
+          const eventLocation = event.tags.find((t: any) => t[0] === 'location')?.[1]?.toLowerCase();
+          if (eventLocation && calendarData!.locations.some((loc: string) => eventLocation.includes(loc.toLowerCase()))) {
+            isAutoIncluded = true;
+          }
+        }
+
+        if (isExplicitlyApproved || (isAutoIncluded && !isExplicitlyRejected)) {
           approved.push(event);
-        } else if (!rejectedRefs.includes(coord) && !rejectedRefs.includes(event.id)) {
+        } else if (!isExplicitlyRejected) {
           pending.push(event);
         }
       });
