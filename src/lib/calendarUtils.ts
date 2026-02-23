@@ -184,3 +184,44 @@ export async function removeEventFromCalendar(
     });
   });
 }
+
+export async function deleteCalendarEvent(
+  nostr: any,
+  createEvent: any,
+  calendarCoordinate: string
+) {
+  // 1. Fetch the exact calendar event from relays to get its ID
+  const parts = calendarCoordinate.split(':');
+  if (parts.length !== 3) throw new Error("Invalid calendar coordinate");
+
+  const [, pubkey, dTag] = parts;
+
+  const events = await nostr.query([
+    {
+      kinds: [31924],
+      authors: [pubkey],
+      '#d': [dTag],
+    }
+  ]);
+
+  if (events.length === 0) {
+    throw new Error("Calendar not found");
+  }
+
+  const eventId = events[0].id;
+
+  // 2. Discard the calendar using a NIP-09 deletion event indicating both its ID and coordinate
+  return new Promise((resolve, reject) => {
+    createEvent({
+      kind: 5,
+      content: "Deleted group calendar",
+      tags: [
+        ['e', eventId],
+        ['a', calendarCoordinate]
+      ],
+    }, {
+      onSuccess: resolve,
+      onError: reject
+    });
+  });
+}
