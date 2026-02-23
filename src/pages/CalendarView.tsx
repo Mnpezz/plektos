@@ -6,7 +6,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { nip19 } from "nostr-tools";
 import { createEventIdentifier } from "@/lib/nip19Utils";
-import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle, FileUp, Inbox, X } from "lucide-react";
+import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle, FileUp, Inbox, X, Edit } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
@@ -35,10 +35,32 @@ export function CalendarView() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
 
-  // Parse pubkey and d tag from the url param (assuming format pubkey:d or just d)
-  const parts = naddr?.split(':') || [];
-  const queryPubkey = parts.length > 1 ? parts[0] : null;
-  const queryD = parts.length > 1 ? parts[1] : naddr;
+  // Parse pubkey and d tag from the url param
+  let queryPubkey: string | null = null;
+  let queryD: string | null = null;
+
+  try {
+    if (naddr && naddr.startsWith('naddr')) {
+      const { type, data } = nip19.decode(naddr);
+      if (type === 'naddr') {
+        queryPubkey = data.pubkey;
+        queryD = data.identifier;
+      }
+    } else {
+      const parts = naddr?.split(':') || [];
+      if (parts.length === 3) {
+        queryPubkey = parts[1];
+        queryD = parts[2];
+      } else if (parts.length === 2) {
+        queryPubkey = parts[0];
+        queryD = parts[1];
+      } else {
+        queryD = naddr || null;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to parse calendar coordinate:", error);
+  }
 
   const isOwner = user?.pubkey === queryPubkey;
   const [showPending, setShowPending] = useState(false);
@@ -259,19 +281,37 @@ export function CalendarView() {
         const isExplicitlyApproved = explicitRefs.includes(coord) || explicitRefs.includes(event.id);
         const isExplicitlyRejected = rejectedRefs.includes(coord) || rejectedRefs.includes(event.id);
 
-        let isAutoIncluded = false;
+        let hasHashtagMatch = false;
+        let hasLocationMatch = false;
 
-        if (calendarData!.hashtags && calendarData!.hashtags.length > 0) {
+        const hasHashtagFilters = !!(calendarData!.hashtags && calendarData!.hashtags.length > 0);
+        const hasLocationFilters = !!(calendarData!.locations && calendarData!.locations.length > 0);
+
+        if (hasHashtagFilters) {
           const eventHashtags = event.tags.filter((t: any) => t[0] === 't').map((t: any) => t[1].toLowerCase());
-          if (calendarData!.hashtags.some((tag: string) => eventHashtags.includes(tag.toLowerCase()))) {
-            isAutoIncluded = true;
-          }
+          hasHashtagMatch = calendarData!.hashtags!.some((tag: string) => eventHashtags.includes(tag.toLowerCase()));
+        } else {
+          // If no hashtag filters exist, we consider it a "match" for the sake of AND logic
+          hasHashtagMatch = true;
         }
 
-        if (calendarData!.locations && calendarData!.locations.length > 0) {
+        if (hasLocationFilters) {
           const eventLocation = event.tags.find((t: any) => t[0] === 'location')?.[1]?.toLowerCase();
-          if (eventLocation && calendarData!.locations.some((loc: string) => eventLocation.includes(loc.toLowerCase()))) {
-            isAutoIncluded = true;
+          hasLocationMatch = !!(eventLocation && calendarData!.locations!.some((loc: string) => eventLocation.includes(loc.toLowerCase())));
+        } else {
+          // If no location filters exist, we consider it a "match" for the sake of AND logic
+          hasLocationMatch = true;
+        }
+
+        let isAutoIncluded = false;
+
+        // Only process auto-include logic if at least one filter actually exists
+        if (hasHashtagFilters || hasLocationFilters) {
+          if (calendarData!.matchType === 'all') {
+            isAutoIncluded = hasHashtagMatch && hasLocationMatch;
+          } else {
+            // "any" mode - default
+            isAutoIncluded = Boolean((hasHashtagFilters && hasHashtagMatch) || (hasLocationFilters && hasLocationMatch));
           }
         }
 
@@ -363,7 +403,16 @@ export function CalendarView() {
         )}
 
         {isOwner && (
-          <div className="bg-muted/30 border-t p-4 flex justify-end">
+          <div className="bg-muted/30 border-t p-4 flex justify-end gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/edit-calendar/${calendarCoordinate}`)}
+              className="transition-colors"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Calendar
+            </Button>
             <Button
               variant="outline"
               size="sm"
