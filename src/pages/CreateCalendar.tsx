@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from "sonner";
-import { CalendarDays, Rocket, Target, FileText, Hash, MapPin } from "lucide-react";
+import { CalendarDays, Rocket, Target, FileText, Hash, MapPin, Filter } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 export function CreateCalendar() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export function CreateCalendar() {
     imageUrl: "",
     hashtags: "",
     location: "",
+    matchType: "any" as "any" | "all"
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,6 +61,10 @@ export function CreateCalendar() {
 
       if (formData.location.trim()) {
         tags.push(["location", formData.location.trim()]);
+      }
+
+      if (formData.hashtags || formData.location.trim()) {
+        tags.push(["match_type", formData.matchType]);
       }
 
       createEvent({
@@ -195,6 +201,34 @@ export function CreateCalendar() {
               />
               <p className="text-xs text-muted-foreground">Exact match for location field</p>
             </div>
+
+            {(formData.hashtags || formData.location) && (
+              <div className="col-span-1 md:col-span-2 space-y-4 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
+                  <div className="space-y-1">
+                    <Label htmlFor="match-type" className="text-base font-semibold flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-primary" /> Filter Logic
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {formData.matchType === 'any'
+                        ? 'Include events that match ANY of these tags or locations (OR)'
+                        : 'Include events that must match ALL of these tags and locations (AND)'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-medium ${formData.matchType === 'any' ? 'text-foreground' : 'text-muted-foreground'}`}>ANY</span>
+                    <Switch
+                      id="match-type"
+                      checked={formData.matchType === 'all'}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, matchType: checked ? 'all' : 'any' }))
+                      }
+                    />
+                    <span className={`text-sm font-medium ${formData.matchType === 'all' ? 'text-foreground' : 'text-muted-foreground'}`}>ALL</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
