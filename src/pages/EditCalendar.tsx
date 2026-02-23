@@ -63,9 +63,9 @@ export function EditCalendar() {
   const isOwner = user?.pubkey === queryPubkey;
 
   const { data: calendarData, isLoading: isLoadingCalendar } = useQuery({
-    queryKey: ['calendar', naddr],
+    queryKey: ['edit-calendar', naddr],
     enabled: !!nostr && !!queryD && !!queryPubkey,
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       const filter: any = { kinds: [31924] };
 
       if (queryD) {
@@ -75,16 +75,22 @@ export function EditCalendar() {
         filter.authors = [queryPubkey];
       }
 
-      // Add a timeout to prevent infinite loading if relays are unresponsive
-      const fetchSignal = AbortSignal.any([signal, AbortSignal.timeout(5000)]);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       let events: any[] = [];
       try {
-        events = await nostr.query([filter], { signal: fetchSignal });
+        events = await nostr.query([filter], { signal: controller.signal });
       } catch (err) {
-        console.warn("Edit Calendar query timed out or failed:", err);
+        console.warn("Edit Calendar query failed:", err);
+      } finally {
+        clearTimeout(timeoutId);
       }
 
-      if (events.length === 0) return null;
+      if (!events || events.length === 0) return null;
+
+      // Sort to get the latest version if multiple relays returned different versions
+      events.sort((a: any, b: any) => b.created_at - a.created_at);
 
       // Store the raw event so we can preserve tags we don't modify
       return {
@@ -149,8 +155,11 @@ export function EditCalendar() {
         });
       }
 
-      if (formData.location.trim()) {
-        tags.push(["location", formData.location.trim()]);
+      if (formData.location) {
+        const parsedLocations = formData.location.split(",").map(loc => loc.trim()).filter(Boolean);
+        parsedLocations.forEach(loc => {
+          tags.push(["location", loc]);
+        });
       }
 
       if (formData.hashtags || formData.location.trim()) {
@@ -165,6 +174,7 @@ export function EditCalendar() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['calendars'] });
           queryClient.invalidateQueries({ queryKey: ['calendar', naddr] });
+          queryClient.invalidateQueries({ queryKey: ['edit-calendar', naddr] });
           toast.success("Calendar updated successfully!");
           navigate(`/calendar/${naddr}`);
         },
@@ -278,10 +288,10 @@ export function EditCalendar() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, location: e.target.value }))
                 }
-                placeholder="e.g. Austin, TX"
+                placeholder="e.g. Austin, Dallas, Houston"
                 className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
               />
-              <p className="text-xs text-muted-foreground">Exact match for location field</p>
+              <p className="text-xs text-muted-foreground">Comma-separated locations</p>
             </div>
 
             {(formData.hashtags || formData.location) && (
