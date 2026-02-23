@@ -570,6 +570,7 @@ export function CalendarView() {
           open={isSubmitDialogOpen}
           onOpenChange={setIsSubmitDialogOpen}
           calendarCoordinate={calendarCoordinate}
+          rejectedCoordinates={calendarData?.rejected || []}
         />
       )}
     </div>
