@@ -13,6 +13,7 @@ export interface CalendarData {
   description: string;
   image?: string;
   events: string[]; // List of reference coordinates or ids representing events included
+  rejected?: string[]; // List of blocked coordinates
 }
 
 export function parseCalendarEvent(event: any): CalendarData | null {
@@ -29,6 +30,11 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     .filter((t: any) => t[0] === 'a' || t[0] === 'e')
     .map((t: any) => t[1]);
 
+  // Extract blocked/rejected events
+  const rejectedEvents = event.tags
+    .filter((t: any) => t[0] === 'rejected' || t[0] === '-') // fallback to `-` just in case
+    .map((t: any) => t[1]);
+
   if (!d || !title) return null;
 
   return {
@@ -40,7 +46,8 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     title,
     description: event.content || '',
     image,
-    events: includedEvents
+    events: includedEvents,
+    rejected: rejectedEvents
   };
 }
 
@@ -219,6 +226,59 @@ export async function deleteCalendarEvent(
         ['e', eventId],
         ['a', calendarCoordinate]
       ],
+    }, {
+      onSuccess: resolve,
+      onError: reject
+    });
+  });
+}
+
+export async function rejectEventFromCalendar(
+  nostr: any,
+  createEvent: any,
+  calendarCoordinate: string,
+  eventCoordinate: string
+) {
+  // 1. Fetch the exact calendar event from relays
+  const parts = calendarCoordinate.split(':');
+  if (parts.length !== 3) throw new Error("Invalid calendar coordinate");
+
+  const [, pubkey, dTag] = parts;
+
+  const events = await nostr.query([
+    {
+      kinds: [31924],
+      authors: [pubkey],
+      '#d': [dTag],
+    }
+  ]);
+
+  if (events.length === 0) {
+    throw new Error("Calendar not found");
+  }
+
+  // 2. Extract existing tags
+  const calendarEvent = events[0];
+  const existingTags = [...calendarEvent.tags];
+
+  // 3. Prevent duplicate rejections
+  const isDuplicate = existingTags.some(
+    (tag: any) => (tag[0] === 'rejected' || tag[0] === '-') && tag[1] === eventCoordinate
+  );
+
+  if (isDuplicate) {
+    throw new Error("Event is already rejected");
+  }
+
+  // 4. Append the new rejection tag
+  existingTags.push(['rejected', eventCoordinate]);
+
+  // 5. Republish the calendar event
+  return new Promise((resolve, reject) => {
+    createEvent({
+      kind: 31924,
+      content: calendarEvent.content,
+      tags: existingTags,
     }, {
       onSuccess: resolve,
       onError: reject
