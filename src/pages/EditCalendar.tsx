@@ -113,7 +113,7 @@ export function EditCalendar() {
         description: calendarData.parsed.description || "",
         imageUrl: calendarData.parsed.image || "",
         hashtags: calendarData.parsed.hashtags?.join(", ") || "",
-        location: calendarData.parsed.locations?.join(", ") || "",
+        location: calendarData.parsed.locations?.join(" + ") || "",
         matchType: calendarData.parsed.matchType || "any"
       });
     }
@@ -156,7 +156,7 @@ export function EditCalendar() {
       }
 
       if (formData.location) {
-        const parsedLocations = formData.location.split(",").map(loc => loc.trim()).filter(Boolean);
+        const parsedLocations = formData.location.split("+").map(loc => loc.trim()).filter(Boolean);
         parsedLocations.forEach(loc => {
           tags.push(["location", loc]);
         });
@@ -288,10 +288,10 @@ export function EditCalendar() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, location: e.target.value }))
                 }
-                placeholder="e.g. Austin, Dallas, Houston"
+                placeholder="e.g. Austin, TX + Lexington, KY"
                 className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
               />
-              <p className="text-xs text-muted-foreground">Comma-separated locations</p>
+              <p className="text-xs text-muted-foreground">Separate multiple locations with +</p>
             </div>
 
             {(formData.hashtags || formData.location) && (
