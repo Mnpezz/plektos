@@ -159,8 +159,23 @@ export function CalendarView() {
         filter.authors = [queryPubkey];
       }
 
-      const events = await nostr.query([filter]);
-      if (events.length === 0) return null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      let events: any[] = [];
+      try {
+        events = await nostr.query([filter], { signal: controller.signal });
+      } catch (err) {
+        console.warn("Calendar query failed:", err);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!events || events.length === 0) return null;
+
+      // Sort to get the latest version of the calendar data
+      events.sort((a: any, b: any) => b.created_at - a.created_at);
+
       return parseCalendarEvent(events[0]);
     }
   });
@@ -173,7 +188,7 @@ export function CalendarView() {
   const { data = { approved: [], pending: [] }, isLoading: isLoadingEvents } = useQuery({
     queryKey: ['calendarEvents', calendarCoordinate, calendarData?.events],
     enabled: !!nostr && !!calendarCoordinate && !!calendarData,
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       // 1. Find events that declare they belong to this calendar
       const baseFilter: any = {
         kinds: [31922, 31923],
@@ -237,13 +252,17 @@ export function CalendarView() {
         return { approved: [], pending: [] };
       }
 
-      // Add a timeout to prevent infinite loading if relays are unresponsive
-      const fetchSignal = AbortSignal.any([signal, AbortSignal.timeout(5000)]);
+      // Add an AbortController timeout to stop waiting for EOSE if relays stall
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       let events: any[] = [];
       try {
-        events = await nostr.query(filters, { signal: fetchSignal });
+        events = await nostr.query(filters, { signal: controller.signal });
       } catch (err) {
-        console.warn("Calendar View query timed out or failed:", err);
+        console.warn("Calendar View query failed or timed out:", err);
+      } finally {
+        clearTimeout(timeoutId);
       }
 
       // Deduplicate raw nostr events by their ID
