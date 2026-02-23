@@ -59,8 +59,11 @@ export function CreateCalendar() {
         });
       }
 
-      if (formData.location.trim()) {
-        tags.push(["location", formData.location.trim()]);
+      if (formData.location) {
+        const parsedLocations = formData.location.split(",").map(loc => loc.trim()).filter(Boolean);
+        parsedLocations.forEach(loc => {
+          tags.push(["location", loc]);
+        });
       }
 
       if (formData.hashtags || formData.location.trim()) {
@@ -196,10 +199,10 @@ export function CreateCalendar() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, location: e.target.value }))
                 }
-                placeholder="e.g. Austin, TX"
+                placeholder="e.g. Austin, Dallas, Houston"
                 className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
               />
-              <p className="text-xs text-muted-foreground">Exact match for location field</p>
+              <p className="text-xs text-muted-foreground">Comma-separated locations</p>
             </div>
 
             {(formData.hashtags || formData.location) && (
