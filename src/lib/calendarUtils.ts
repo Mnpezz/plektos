@@ -16,6 +16,7 @@ export interface CalendarData {
   rejected?: string[]; // List of blocked coordinates
   hashtags?: string[]; // Auto-include events with these hashtags
   locations?: string[]; // Auto-include events matching these locations
+  matchType?: 'any' | 'all'; // Determine if filters are joined by OR (any) or AND (all)
 }
 
 export function parseCalendarEvent(event: any): CalendarData | null {
@@ -46,6 +47,9 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     .filter((t: any) => t[0] === 'location')
     .map((t: any) => t[1]);
 
+  const matchTypeTag = event.tags.find((t: any) => t[0] === 'match_type');
+  const matchType = matchTypeTag && matchTypeTag[1] === 'all' ? 'all' : 'any';
+
   if (!d || !title) return null;
 
   return {
@@ -60,7 +64,8 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     events: includedEvents,
     rejected: rejectedEvents,
     hashtags,
-    locations
+    locations,
+    matchType
   };
 }
 
