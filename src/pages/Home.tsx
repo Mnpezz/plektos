@@ -62,7 +62,7 @@ export function Home() {
   const [displayedEventCount, setDisplayedEventCount] = useState(50);
 
   const { nostr } = useNostr();
-  const { data: globalRsvps = [] } = useQuery({
+  const { data: globalRsvps = [], isLoading: isLoadingGlobalRsvps } = useQuery({
     queryKey: ["globalTotalRsvps"],
     queryFn: async ({ signal }) => {
       const events = await nostr.query(
@@ -550,7 +550,11 @@ export function Home() {
                 </svg>
               </div>
               <p className="text-2xl sm:text-3xl font-bold text-foreground">
-                {totalRSVPs}
+                {isLoadingGlobalRsvps ? (
+                  <span className="animate-pulse">-</span>
+                ) : (
+                  totalRSVPs
+                )}
               </p>
               <p className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-widest text-center sm:text-left">
                 Total RSVPs
