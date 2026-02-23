@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from "sonner";
-import { CalendarDays, Rocket, Target, FileText } from "lucide-react";
+import { CalendarDays, Rocket, Target, FileText, Hash, MapPin } from "lucide-react";
 
 export function CreateCalendar() {
   const navigate = useNavigate();
@@ -21,6 +21,8 @@ export function CreateCalendar() {
     title: "",
     description: "",
     imageUrl: "",
+    hashtags: "",
+    location: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +45,20 @@ export function CreateCalendar() {
 
       if (formData.imageUrl) {
         tags.push(["image", formData.imageUrl]);
+      }
+
+      // Add auto-include filters
+      if (formData.hashtags) {
+        const parsedHashtags = formData.hashtags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+        parsedHashtags.forEach(tag => {
+          // Remove # if user added it manually
+          const cleanTag = tag.startsWith('#') ? tag.substring(1) : tag;
+          tags.push(["t", cleanTag]);
+        });
+      }
+
+      if (formData.location.trim()) {
+        tags.push(["location", formData.location.trim()]);
       }
 
       createEvent({
@@ -135,6 +151,51 @@ export function CreateCalendar() {
             className="min-h-32 rounded-2xl border-2 focus:border-primary transition-all duration-200 resize-none"
             required
           />
+        </div>
+
+        <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Smart Filters (Optional)
+            </h3>
+            <p className="text-muted-foreground">
+              Automatically pull events into this calendar if they match these criteria. No manual approval needed!
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <Label htmlFor="hashtags" className="text-lg font-semibold flex items-center gap-2">
+                <Hash className="h-5 w-5 text-primary" /> Auto-Include Hashtags
+              </Label>
+              <Input
+                id="hashtags"
+                value={formData.hashtags}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, hashtags: e.target.value }))
+                }
+                placeholder="e.g. austin, bitcoin, meetup"
+                className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
+              />
+              <p className="text-xs text-muted-foreground">Comma-separated tags</p>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="location" className="text-lg font-semibold flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-primary" /> Auto-Include Location
+              </Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, location: e.target.value }))
+                }
+                placeholder="e.g. Austin, TX"
+                className="text-lg py-3 rounded-2xl border-2 focus:border-primary transition-all duration-200"
+              />
+              <p className="text-xs text-muted-foreground">Exact match for location field</p>
+            </div>
+          </div>
         </div>
 
         <ImageUpload
