@@ -21,7 +21,8 @@ import { Link } from "react-router-dom";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import { ZappableLightningAddress } from "@/components/ZappableLightningAddress";
 import { EditProfileForm } from "@/components/EditProfileForm";
-import { ExternalLink, Loader2, Settings, PartyPopper, Users } from "lucide-react";
+import { ExternalLink, Loader2, Settings, PartyPopper, Users, CalendarDays, Plus } from "lucide-react";
+import { useUserCalendars } from "@/lib/calendarUtils";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import type {
   DateBasedEvent,
@@ -134,6 +135,11 @@ export function Profile() {
     retry: 1,
     staleTime: 30000,
   });
+
+  const {
+    data: userCalendars = [],
+    isLoading: isLoadingCalendars,
+  } = useUserCalendars(pubkey);
 
   const metadata = author.data?.metadata;
   const displayName =
@@ -361,9 +367,10 @@ export function Profile() {
 
       {/* Events Section: Tabs for Created and RSVP'd Events */}
       <Tabs defaultValue="created" className="w-full">
-        <TabsList className="flex gap-2 mb-6">
+        <TabsList className="flex flex-wrap gap-2 mb-6">
           <TabsTrigger value="created" className="flex items-center gap-2"><PartyPopper className="h-5 w-5 text-primary" /> Created Events</TabsTrigger>
           <TabsTrigger value="rsvpd" className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> RSVP'd Events</TabsTrigger>
+          <TabsTrigger value="calendars" className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /> My Calendars</TabsTrigger>
         </TabsList>
         <TabsContent value="created">
           {isLoadingCreated ? (
@@ -420,6 +427,65 @@ export function Profile() {
                   </Link>
                 );
               })}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="calendars">
+          {isLoadingCalendars ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading calendars...</span>
+            </div>
+          ) : userCalendars.length === 0 ? (
+            <div className="text-center py-12 px-4 rounded-xl border-2 border-dashed bg-muted/20">
+              <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <h3 className="text-lg font-medium text-foreground mb-1">No Calendars Yet</h3>
+              <p className="text-muted-foreground mb-4">You haven't created any group calendars yet.</p>
+              {isOwnProfile && (
+                <Button asChild>
+                  <Link to="/create-calendar">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Calendar
+                  </Link>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {isOwnProfile && (
+                <div className="flex justify-end">
+                  <Button asChild variant="outline">
+                    <Link to="/create-calendar">
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Calendar
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {userCalendars.map((cal) => (
+                  <Link to={`/calendar/${cal.pubkey}:${cal.d}`} key={cal.id}>
+                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
+                      <div className="aspect-video w-full overflow-hidden relative bg-muted">
+                        <img
+                          src={cal.image || "/default-calendar.png"}
+                          alt={cal.title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-100 transition-opacity duration-300" />
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="text-white font-bold text-lg line-clamp-1">{cal.title}</h3>
+                        </div>
+                      </div>
+                      <CardContent className="p-4 sm:p-6">
+                        <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
+                          {cal.description || "No description provided."}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
