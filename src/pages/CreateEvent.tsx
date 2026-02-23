@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ import { useUserCalendars, createCoordinate } from "@/lib/calendarUtils";
 import { PartyPopper, Target, FileText, Calendar as CalendarIcon, Flag, Clock, Globe, Rocket, CalendarDays } from "lucide-react";
 export function CreateEvent() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedCalendar = searchParams.get("calendar");
   const { user } = useCurrentUser();
   const { mutate: createEvent } = useNostrPublish();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +55,7 @@ export function CreateEvent() {
     endDate: "",
     endTime: "",
     imageUrl: "",
-    selectedCalendarCoordinate: "",
+    selectedCalendarCoordinate: preselectedCalendar || "",
     categories: [] as EventCategory[],
     ticketInfo: {
       enabled: false,
