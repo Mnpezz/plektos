@@ -93,6 +93,24 @@ export function Profile() {
     staleTime: 30000,
   });
 
+  const {
+    data: receivedRsvps = [],
+    isLoading: isLoadingReceivedRsvps,
+  } = useQuery({
+    queryKey: ["receivedRsvps", pubkey],
+    queryFn: async ({ signal }) => {
+      if (!pubkey) return [];
+      const events = await nostr.query(
+        [{ kinds: [31925], "#p": [pubkey] }],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }
+      );
+      return events as unknown as EventRSVP[];
+    },
+    enabled: !!pubkey,
+    retry: 1,
+    staleTime: 30000,
+  });
+
   // Fetch the actual events that were RSVP'd to
   const {
     data: rsvpEvents = [],
@@ -261,13 +279,13 @@ export function Profile() {
 
           {/* Stats section */}
           {!author.isLoading && !isLoadingCreated && (
-            <div className="flex gap-6 mt-4">
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold">{createdEvents.length}</span>
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Events</span>
+            <div className="flex flex-wrap gap-4 sm:gap-8 mt-4">
+              <div className="flex flex-col bg-muted/30 p-3 sm:p-4 rounded-2xl flex-1 items-center justify-center min-w-[100px] shadow-sm">
+                <span className="text-2xl sm:text-3xl font-bold text-primary">{createdEvents.length}</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold text-center mt-1">Total Events</span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold">
+              <div className="flex flex-col bg-muted/30 p-3 sm:p-4 rounded-2xl flex-1 items-center justify-center min-w-[100px] shadow-sm">
+                <span className="text-2xl sm:text-3xl font-bold text-primary">
                   {createdEvents.filter((event) => {
                     const startTag = event.tags.find((t) => t[0] === "start")?.[1];
                     if (!startTag) return false;
@@ -304,7 +322,34 @@ export function Profile() {
                     }
                   }).length}
                 </span>
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Current Events</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold text-center mt-1">Current Events</span>
+              </div>
+              <div className="flex flex-col bg-muted/30 p-3 sm:p-4 rounded-2xl flex-1 items-center justify-center min-w-[100px] shadow-sm">
+                {isLoadingRSVPs ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground my-1" />
+                ) : (
+                  <span className="text-2xl sm:text-3xl font-bold text-primary">
+                    {rsvps.filter(r => r.tags.find(t => t[0] === "status")?.[1] === "accepted").length}
+                  </span>
+                )}
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold text-center mt-1">Attending</span>
+              </div>
+              <div className="flex flex-col bg-muted/30 p-3 sm:p-4 rounded-2xl flex-1 items-center justify-center min-w-[100px] shadow-sm">
+                {isLoadingReceivedRsvps ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground my-1" />
+                ) : (
+                  <span className="text-2xl sm:text-3xl font-bold text-primary">
+                    {
+                      // Filter down to accepted RSVPs and get unique pubkeys
+                      Array.from(new Set(
+                        receivedRsvps
+                          .filter(r => r.tags.find(t => t[0] === "status")?.[1] === "accepted")
+                          .map(r => r.pubkey)
+                      )).length
+                    }
+                  </span>
+                )}
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold text-center mt-1">Total Attendees</span>
               </div>
             </div>
           )}
