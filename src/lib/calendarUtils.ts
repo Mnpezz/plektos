@@ -14,6 +14,8 @@ export interface CalendarData {
   image?: string;
   events: string[]; // List of reference coordinates or ids representing events included
   rejected?: string[]; // List of blocked coordinates
+  hashtags?: string[]; // Auto-include events with these hashtags
+  locations?: string[]; // Auto-include events matching these locations
 }
 
 export function parseCalendarEvent(event: any): CalendarData | null {
@@ -35,6 +37,15 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     .filter((t: any) => t[0] === 'rejected' || t[0] === '-') // fallback to `-` just in case
     .map((t: any) => t[1]);
 
+  // Extract auto-include filters
+  const hashtags = event.tags
+    .filter((t: any) => t[0] === 't')
+    .map((t: any) => t[1]);
+
+  const locations = event.tags
+    .filter((t: any) => t[0] === 'location')
+    .map((t: any) => t[1]);
+
   if (!d || !title) return null;
 
   return {
@@ -47,7 +58,9 @@ export function parseCalendarEvent(event: any): CalendarData | null {
     description: event.content || '',
     image,
     events: includedEvents,
-    rejected: rejectedEvents
+    rejected: rejectedEvents,
+    hashtags,
+    locations
   };
 }
 
