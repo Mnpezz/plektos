@@ -4,15 +4,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNostr } from "@/hooks/useNostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
-import { parseCalendarEvent, deleteCalendarEvent } from "@/lib/calendarUtils";
 import { nip19 } from "nostr-tools";
 import { createEventIdentifier } from "@/lib/nip19Utils";
-import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle, FileUp, Inbox } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import { MonthlyCalendarView } from "@/components/MonthlyCalendarView";
+import { SubmitToGroupCalendarDialog } from "@/components/SubmitToGroupCalendarDialog";
 import { toast } from "sonner";
+import { parseCalendarEvent, deleteCalendarEvent, addEventToCalendar } from "@/lib/calendarUtils";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ export function CalendarView() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
 
   // Parse pubkey and d tag from the url param (assuming format pubkey:d or just d)
   const parts = naddr?.split(':') || [];
@@ -39,6 +41,8 @@ export function CalendarView() {
   const queryD = parts.length > 1 ? parts[1] : naddr;
 
   const isOwner = user?.pubkey === queryPubkey;
+  const [showPending, setShowPending] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const handleDeleteCalendar = async () => {
     if (!calendarCoordinate || !isOwner) return;
@@ -71,6 +75,23 @@ export function CalendarView() {
     }
   };
 
+  const handleApproveEvent = async (eventCoordinateToApprove: string) => {
+    if (!calendarCoordinate || !isOwner) return;
+    setApprovingId(eventCoordinateToApprove);
+
+    try {
+      await addEventToCalendar(nostr, createEvent, calendarCoordinate, eventCoordinateToApprove);
+      toast.success("Event officially added to your calendar!");
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents', calendarCoordinate] });
+      queryClient.invalidateQueries({ queryKey: ['calendar', naddr] }); // Fetch the newly refreshed root calendar
+    } catch (error: any) {
+      console.error("Failed to approve event:", error);
+      toast.error(error.message || "Failed to approve event");
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const { data: calendarData, isLoading: isLoadingCalendar } = useQuery({
     queryKey: ['calendar', naddr],
     enabled: !!nostr && !!queryD,
@@ -95,9 +116,10 @@ export function CalendarView() {
     : null;
 
   // Query events that reference this calendar via an `a` tag OR events specifically included by the calendar
-  const { data: calendarEvents = [], isLoading: isLoadingEvents } = useQuery({
+  // Query events that reference this calendar via an `a` tag OR events specifically included by the calendar
+  const { data = { approved: [], pending: [] }, isLoading: isLoadingEvents } = useQuery({
     queryKey: ['calendarEvents', calendarCoordinate, calendarData?.events],
-    enabled: !!nostr && !!calendarCoordinate,
+    enabled: !!nostr && !!calendarCoordinate && !!calendarData,
     queryFn: async () => {
       // 1. Find events that declare they belong to this calendar
       const filters: any[] = [
@@ -108,30 +130,29 @@ export function CalendarView() {
       ];
 
       // 2. Map explicit events that this calendar references
-      if (calendarData?.events && calendarData.events.length > 0) {
-        const explicitIds: string[] = [];
+      const explicitRefs = calendarData!.events || [];
+      const explicitIds: string[] = [];
 
-        for (const ref of calendarData.events) {
-          if (ref.includes(':')) {
-            const parts = ref.split(':');
-            if (parts.length === 3) {
-              filters.push({
-                kinds: [parseInt(parts[0])],
-                authors: [parts[1]],
-                '#d': [parts[2]]
-              });
-            }
-          } else {
-            explicitIds.push(ref);
+      for (const ref of explicitRefs) {
+        if (ref.includes(':')) {
+          const parts = ref.split(':');
+          if (parts.length === 3) {
+            filters.push({
+              kinds: [parseInt(parts[0])],
+              authors: [parts[1]],
+              '#d': [parts[2]]
+            });
           }
+        } else {
+          explicitIds.push(ref);
         }
+      }
 
-        if (explicitIds.length > 0) {
-          filters.push({
-            kinds: [31922, 31923],
-            ids: explicitIds
-          });
-        }
+      if (explicitIds.length > 0) {
+        filters.push({
+          kinds: [31922, 31923],
+          ids: explicitIds
+        });
       }
 
       const events = await nostr.query(filters);
@@ -141,7 +162,8 @@ export function CalendarView() {
       events.forEach((e: any) => uniqueEventsMap.set(e.id, e));
       const deduplicatedEvents = Array.from(uniqueEventsMap.values());
 
-      return deduplicatedEvents.sort((a: any, b: any) => {
+      // Sort chronological
+      const sortedEvents = deduplicatedEvents.sort((a: any, b: any) => {
         const timeA = a.tags.find((t: any) => t[0] === 'start')?.[1];
         const timeB = b.tags.find((t: any) => t[0] === 'start')?.[1];
 
@@ -156,8 +178,30 @@ export function CalendarView() {
 
         return parseTime(timeA, a.created_at) - parseTime(timeB, b.created_at);
       });
+
+      // Segregate into Approved vs Pending
+      // Approved = implicitly in the calendarData.events array
+      const approved: any[] = [];
+      const pending: any[] = [];
+
+      sortedEvents.forEach((event: any) => {
+        const isReplaceable = event.kind >= 30000 && event.kind < 40000;
+        const dTag = event.tags.find((t: string[]) => t[0] === 'd')?.[1];
+        const coord = isReplaceable && dTag ? `${event.kind}:${event.pubkey}:${dTag}` : event.id;
+
+        if (explicitRefs.includes(coord) || explicitRefs.includes(event.id)) {
+          approved.push(event);
+        } else {
+          pending.push(event);
+        }
+      });
+
+      return { approved, pending };
     }
   });
+
+  // Use either the approved list or the pending list depending on the state wrapper
+  const activeEventsList = showPending ? data.pending : data.approved;
 
   if (isLoadingCalendar) {
     return (
@@ -239,30 +283,65 @@ export function CalendarView() {
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <div className="flex bg-muted/50 p-1 rounded-full border">
               <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
+                variant={viewMode === "list" && !showPending ? "secondary" : "ghost"}
                 size="sm"
                 className="rounded-full px-3"
-                onClick={() => setViewMode("list")}
+                onClick={() => {
+                  setViewMode("list");
+                  setShowPending(false);
+                }}
               >
                 <LayoutGrid className="h-4 w-4 mr-2" />
                 Feed
               </Button>
               <Button
-                variant={viewMode === "calendar" ? "secondary" : "ghost"}
+                variant={viewMode === "calendar" && !showPending ? "secondary" : "ghost"}
                 size="sm"
                 className="rounded-full px-3"
-                onClick={() => setViewMode("calendar")}
+                onClick={() => {
+                  setViewMode("calendar");
+                  setShowPending(false);
+                }}
               >
                 <CalendarDays className="h-4 w-4 mr-2" />
                 Month
               </Button>
+              {isOwner && (
+                <Button
+                  variant={showPending ? "secondary" : "ghost"}
+                  size="sm"
+                  className="rounded-full px-3 relative"
+                  onClick={() => setShowPending(true)}
+                >
+                  <Inbox className="h-4 w-4 mr-2" />
+                  Inbox
+                  {data.pending.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      {data.pending.length}
+                    </span>
+                  )}
+                </Button>
+              )}
             </div>
+
             <Button asChild variant="outline" size="sm" className="rounded-full">
-              <Link to="/create">
+              <Link to={`/create${calendarCoordinate ? `?calendar=${calendarCoordinate}` : ''}`}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Event
               </Link>
             </Button>
+
+            {user && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setIsSubmitDialogOpen(true)}
+              >
+                <FileUp className="h-4 w-4 mr-1" />
+                Submit Existing
+              </Button>
+            )}
           </div>
         </div>
 
@@ -270,12 +349,12 @@ export function CalendarView() {
           <div className="flex justify-center p-8">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
           </div>
-        ) : calendarEvents.length > 0 ? (
-          viewMode === "calendar" ? (
-            <MonthlyCalendarView events={calendarEvents as any[]} />
+        ) : activeEventsList.length > 0 ? (
+          viewMode === "calendar" && !showPending ? (
+            <MonthlyCalendarView events={activeEventsList as any[]} />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-              {calendarEvents.map((event: any) => {
+              {activeEventsList.map((event: any) => {
                 const title = event.tags.find((tag: string[]) => tag[0] === "title")?.[1] || "Untitled";
                 const description = event.content;
                 const startTime = event.tags.find((tag: string[]) => tag[0] === "start")?.[1];
@@ -283,39 +362,79 @@ export function CalendarView() {
                 const imageUrl = event.tags.find((tag: string[]) => tag[0] === "image")?.[1];
                 const eventIdentifier = createEventIdentifier(event);
 
-                return (
-                  <Link to={`/event/${eventIdentifier}`} key={event.id}>
-                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
-                      <div className="aspect-video w-full overflow-hidden relative">
-                        <img
-                          src={imageUrl || "/default-calendar.png"}
-                          alt={title}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </div>
-                      <CardHeader className="p-4 sm:p-6">
-                        <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
-                          {title}
-                        </CardTitle>
-                        {startTime && (
-                          <div className="text-sm font-medium">
-                            <TimezoneDisplay event={event} showLocalTime={false} />
-                          </div>
-                        )}
-                      </CardHeader>
-                      <CardContent className="p-4 sm:p-6 pt-0">
+                const isReplaceable = event.kind >= 30000 && event.kind < 40000;
+                const dTag = event.tags.find((t: string[]) => t[0] === 'd')?.[1];
+                const activeEventCoordinate = isReplaceable && dTag ? `${event.kind}:${event.pubkey}:${dTag}` : event.id;
+
+                const isApproving = approvingId === activeEventCoordinate;
+
+                const CardContentBlock = (
+                  <Card className={`h-full transition-all duration-300 overflow-hidden rounded-none sm:rounded-3xl border-2 ${showPending ? 'border-primary/40' : 'border-transparent hover:border-primary/20 hover:scale-105 hover:shadow-xl hover:shadow-primary/20'} group`}>
+                    <div className="aspect-video w-full overflow-hidden relative">
+                      <img
+                        src={imageUrl || "/default-calendar.png"}
+                        alt={title}
+                        className={`w-full h-full object-cover transition-transform duration-300 ${!showPending ? 'group-hover:scale-110' : ''}`}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                      {showPending && (
+                        <div className="absolute top-3 right-3">
+                          <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                            Pending Review
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="p-4 sm:p-6 pb-2">
+                      <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200">
+                        {title}
+                      </CardTitle>
+                      {startTime && (
+                        <div className="text-sm font-medium mt-1">
+                          <TimezoneDisplay event={event} showLocalTime={false} />
+                        </div>
+                      )}
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0 flex-1 flex flex-col justify-between">
+                      <div>
                         <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
                           {description}
                         </p>
                         {location && (
                           <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
                             <span className="text-primary">📍</span>
-                            <span className="font-medium">{location}</span>
+                            <span className="font-medium truncate">{location}</span>
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+
+                      {showPending && (
+                        <div className="mt-4 pt-4 border-t w-full flex gap-2">
+                          <Button
+                            className="flex-1"
+                            size="sm"
+                            disabled={isApproving}
+                            onClick={(e) => {
+                              e.preventDefault(); // prevent navigation
+                              handleApproveEvent(activeEventCoordinate);
+                            }}
+                          >
+                            {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve Event"}
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+
+                if (showPending) {
+                  return <div key={event.id}>{CardContentBlock}</div>;
+                }
+
+                return (
+                  <Link to={`/event/${eventIdentifier}`} key={event.id}>
+                    {CardContentBlock}
                   </Link>
                 );
               })}
@@ -370,6 +489,14 @@ export function CalendarView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {calendarCoordinate && (
+        <SubmitToGroupCalendarDialog
+          open={isSubmitDialogOpen}
+          onOpenChange={setIsSubmitDialogOpen}
+          calendarCoordinate={calendarCoordinate}
+        />
+      )}
     </div>
   );
 }
