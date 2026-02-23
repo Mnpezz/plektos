@@ -258,6 +258,56 @@ export function Profile() {
               </a>
             </div>
           )}
+
+          {/* Stats section */}
+          {!author.isLoading && !isLoadingCreated && (
+            <div className="flex gap-6 mt-4">
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold">{createdEvents.length}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Events</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold">
+                  {createdEvents.filter((event) => {
+                    const startTag = event.tags.find((t) => t[0] === "start")?.[1];
+                    if (!startTag) return false;
+
+                    try {
+                      let startTimeMs = 0;
+                      if (event.kind === 31922) {
+                        // YYYY-MM-DD
+                        startTimeMs = new Date(startTag).getTime();
+                      } else if (event.kind === 31923) {
+                        // Unix timestamp in seconds
+                        startTimeMs = parseInt(startTag) * 1000;
+                      }
+
+                      // For current/upcoming events, we check if start time is in the future
+                      // Note: We could also check end time if available to include ongoing events
+                      const endTag = event.tags.find((t) => t[0] === "end")?.[1];
+                      if (endTag) {
+                        let endTimeMs = 0;
+                        if (event.kind === 31922) {
+                          endTimeMs = new Date(endTag).getTime();
+                        } else if (event.kind === 31923) {
+                          endTimeMs = parseInt(endTag) * 1000;
+                        }
+                        // If end time is in future or today
+                        return endTimeMs >= Date.now();
+                      }
+
+                      // If no end time, we consider it current if it's within the last 24h or in the future
+                      // Just subtracting 24h as a rough buffer for ongoing "day of" events
+                      return startTimeMs >= Date.now() - 24 * 60 * 60 * 1000;
+                    } catch (e) {
+                      return false;
+                    }
+                  }).length}
+                </span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Current Events</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -385,15 +435,15 @@ export function Profile() {
                               status === "accepted"
                                 ? "bg-green-500/10 text-green-500"
                                 : status === "tentative"
-                                ? "bg-yellow-500/10 text-yellow-500"
-                                : "bg-red-500/10 text-red-500"
+                                  ? "bg-yellow-500/10 text-yellow-500"
+                                  : "bg-red-500/10 text-red-500"
                             }
                           >
                             {status === "accepted"
                               ? "Going"
                               : status === "tentative"
-                              ? "Maybe"
-                              : "Can't Go"}
+                                ? "Maybe"
+                                : "Can't Go"}
                           </Badge>
                         </div>
                       </CardHeader>
