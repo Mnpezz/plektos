@@ -6,14 +6,14 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { nip19 } from "nostr-tools";
 import { createEventIdentifier } from "@/lib/nip19Utils";
-import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle, FileUp, Inbox } from "lucide-react";
+import { CalendarDays, MapPin, Plus, LayoutGrid, Trash2, Loader2, AlertCircle, FileUp, Inbox, X } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
 import { MonthlyCalendarView } from "@/components/MonthlyCalendarView";
 import { SubmitToGroupCalendarDialog } from "@/components/SubmitToGroupCalendarDialog";
 import { toast } from "sonner";
-import { parseCalendarEvent, deleteCalendarEvent, addEventToCalendar } from "@/lib/calendarUtils";
+import { parseCalendarEvent, deleteCalendarEvent, addEventToCalendar, rejectEventFromCalendar } from "@/lib/calendarUtils";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,9 @@ export function CalendarView() {
   const isOwner = user?.pubkey === queryPubkey;
   const [showPending, setShowPending] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [localApproved, setLocalApproved] = useState<string[]>([]);
+  const [localRejected, setLocalRejected] = useState<string[]>([]);
 
   const handleDeleteCalendar = async () => {
     if (!calendarCoordinate || !isOwner) return;
@@ -81,14 +84,43 @@ export function CalendarView() {
 
     try {
       await addEventToCalendar(nostr, createEvent, calendarCoordinate, eventCoordinateToApprove);
+
+      // Optimistic UI update: instantly merge the newly approved coordinate into local display state
+      setLocalApproved(prev => [...prev, eventCoordinateToApprove]);
+
       toast.success("Event officially added to your calendar!");
+
+      // Still invalidate to ensure eventual consistency
       queryClient.invalidateQueries({ queryKey: ['calendarEvents', calendarCoordinate] });
-      queryClient.invalidateQueries({ queryKey: ['calendar', naddr] }); // Fetch the newly refreshed root calendar
+      queryClient.invalidateQueries({ queryKey: ['calendar', naddr] });
     } catch (error: any) {
       console.error("Failed to approve event:", error);
       toast.error(error.message || "Failed to approve event");
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleRejectEvent = async (eventCoordinateToReject: string) => {
+    if (!calendarCoordinate || !isOwner) return;
+    setRejectingId(eventCoordinateToReject);
+
+    try {
+      await rejectEventFromCalendar(nostr, createEvent, calendarCoordinate, eventCoordinateToReject);
+
+      // Optimistic UI update: instantly merge the newly rejected coordinate into local display state
+      setLocalRejected(prev => [...prev, eventCoordinateToReject]);
+
+      toast.success("Event rejected and removed from inbox.");
+
+      // Still invalidate to ensure eventual consistency
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents', calendarCoordinate] });
+      queryClient.invalidateQueries({ queryKey: ['calendar', naddr] });
+    } catch (error: any) {
+      console.error("Failed to reject event:", error);
+      toast.error(error.message || "Failed to reject event");
+    } finally {
+      setRejectingId(null);
     }
   };
 
@@ -131,6 +163,7 @@ export function CalendarView() {
 
       // 2. Map explicit events that this calendar references
       const explicitRefs = calendarData!.events || [];
+      const rejectedRefs = calendarData!.rejected || [];
       const explicitIds: string[] = [];
 
       for (const ref of explicitRefs) {
@@ -191,7 +224,7 @@ export function CalendarView() {
 
         if (explicitRefs.includes(coord) || explicitRefs.includes(event.id)) {
           approved.push(event);
-        } else {
+        } else if (!rejectedRefs.includes(coord) && !rejectedRefs.includes(event.id)) {
           pending.push(event);
         }
       });
@@ -200,8 +233,25 @@ export function CalendarView() {
     }
   });
 
-  // Use either the approved list or the pending list depending on the state wrapper
-  const activeEventsList = showPending ? data.pending : data.approved;
+  // Apply local optimistic overrides to bypass relay lag
+  const displayApproved = data.approved.concat(
+    data.pending.filter((e: any) => {
+      const isReplaceable = e.kind >= 30000 && e.kind < 40000;
+      const dTag = e.tags.find((t: string[]) => t[0] === 'd')?.[1];
+      const coord = isReplaceable && dTag ? `${e.kind}:${e.pubkey}:${dTag}` : e.id;
+      return localApproved.includes(coord) || localApproved.includes(e.id);
+    })
+  );
+
+  const displayPending = data.pending.filter((e: any) => {
+    const isReplaceable = e.kind >= 30000 && e.kind < 40000;
+    const dTag = e.tags.find((t: string[]) => t[0] === 'd')?.[1];
+    const coord = isReplaceable && dTag ? `${e.kind}:${e.pubkey}:${dTag}` : e.id;
+    return !localApproved.includes(coord) && !localApproved.includes(e.id) &&
+      !localRejected.includes(coord) && !localRejected.includes(e.id);
+  });
+
+  const activeEventsList = showPending ? displayPending : displayApproved;
 
   if (isLoadingCalendar) {
     return (
@@ -315,9 +365,9 @@ export function CalendarView() {
                 >
                   <Inbox className="h-4 w-4 mr-2" />
                   Inbox
-                  {data.pending.length > 0 && (
+                  {displayPending.length > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                      {data.pending.length}
+                      {displayPending.length}
                     </span>
                   )}
                 </Button>
@@ -367,6 +417,7 @@ export function CalendarView() {
                 const activeEventCoordinate = isReplaceable && dTag ? `${event.kind}:${event.pubkey}:${dTag}` : event.id;
 
                 const isApproving = approvingId === activeEventCoordinate;
+                const isRejecting = rejectingId === activeEventCoordinate;
 
                 const CardContentBlock = (
                   <Card className={`h-full transition-all duration-300 overflow-hidden rounded-none sm:rounded-3xl border-2 ${showPending ? 'border-primary/40' : 'border-transparent hover:border-primary/20 hover:scale-105 hover:shadow-xl hover:shadow-primary/20'} group`}>
@@ -407,6 +458,18 @@ export function CalendarView() {
                             <span className="font-medium truncate">{location}</span>
                           </div>
                         )}
+                        {showPending && event.pubkey && (
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            Submitted by:{" "}
+                            <Link
+                              to={`/profile/${nip19.npubEncode(event.pubkey)}`}
+                              className="font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {nip19.npubEncode(event.pubkey).slice(0, 16)}...
+                            </Link>
+                          </div>
+                        )}
                       </div>
 
                       {showPending && (
@@ -414,13 +477,25 @@ export function CalendarView() {
                           <Button
                             className="flex-1"
                             size="sm"
-                            disabled={isApproving}
+                            disabled={isApproving || isRejecting}
                             onClick={(e) => {
                               e.preventDefault(); // prevent navigation
                               handleApproveEvent(activeEventCoordinate);
                             }}
                           >
-                            {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve Event"}
+                            {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-none text-destructive hover:bg-destructive hover:text-white transition-colors"
+                            size="sm"
+                            disabled={isApproving || isRejecting}
+                            onClick={(e) => {
+                              e.preventDefault(); // prevent navigation
+                              handleRejectEvent(activeEventCoordinate);
+                            }}
+                          >
+                            {isRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                           </Button>
                         </div>
                       )}
