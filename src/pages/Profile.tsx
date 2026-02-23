@@ -42,9 +42,14 @@ export function Profile() {
   useEffect(() => {
     try {
       if (npub) {
-        const decoded = nip19.decode(npub);
-        if (decoded.type === "npub") {
-          setPubkey(decoded.data);
+        if (npub.startsWith("npub1")) {
+          const decoded = nip19.decode(npub);
+          if (decoded.type === "npub") {
+            setPubkey(decoded.data);
+          }
+        } else if (npub.length === 64) {
+          // Fallback if a raw hex string was passed instead of an encoded npub
+          setPubkey(npub);
         }
       }
     } catch (error) {
