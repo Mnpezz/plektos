@@ -1,5 +1,7 @@
 import { useEvents } from "@/lib/eventUtils";
 import { useMuteList } from "@/hooks/useMuteList";
+import { useNostr } from "@nostrify/react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthorsMetadata } from "@/hooks/useAuthorsMetadata";
 import {
   Card,
@@ -59,10 +61,23 @@ export function Home() {
   // State for client-side pagination in grid view
   const [displayedEventCount, setDisplayedEventCount] = useState(50);
 
+  const { nostr } = useNostr();
+  const { data: globalRsvps = [] } = useQuery({
+    queryKey: ["globalTotalRsvps"],
+    queryFn: async ({ signal }) => {
+      const events = await nostr.query(
+        [{ kinds: [31925], limit: 5000 }],
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }
+      );
+      return events;
+    },
+    staleTime: 60000,
+  });
+
   const allEvents = useMemo(() => allEventsData || [], [allEventsData]);
   const totalRSVPs = useMemo(() => {
-    return allEvents.filter(e => e.kind === 31925 && e.tags.find(t => t[0] === "status")?.[1] === "accepted").length;
-  }, [allEvents]);
+    return globalRsvps.filter((e: any) => e.tags.find((t: any) => t[0] === "status")?.[1] === "accepted").length;
+  }, [globalRsvps]);
 
   // Get unique pubkeys from all events for metadata lookup
   const uniquePubkeys = useMemo(() => {
@@ -958,8 +973,8 @@ export function Home() {
                           {/* Attendee count (show for any count, but with different styling) */}
                           {attendeeCount > 0 && (
                             <div className={`flex items-center gap-2 text-sm text-muted-foreground p-2 rounded-xl border ${attendeeCount > 5
-                                ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                                : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                              ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
+                              : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
                               }`}>
                               <span className={`${attendeeCount > 5 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>👥</span>
                               <span className={`font-medium ${attendeeCount > 5 ? 'text-green-800 dark:text-green-200' : 'text-blue-800 dark:text-blue-200'}`}>
