@@ -3,6 +3,7 @@ import { Search, Plus, Ticket, User, Heart, QrCode, CalendarDays } from "lucide-
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { LoginArea } from "@/components/auth/LoginArea";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 import { NotificationBell } from "@/components/NotificationBell";
 import LoginDialog from "@/components/auth/LoginDialog";
@@ -119,7 +120,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
                   size="lg"
                   className={cn(
                     "rounded-2xl transition-all duration-200 hover:scale-105",
-                    item.isActive && "bg-primary/15 text-primary"
+                    item.isActive && "bg-primary/15 text-primary glow-primary"
                   )}
                 >
                   <Link to={item.href} onClick={item.onClick}>
@@ -139,6 +140,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
         {/* Account section */}
         <div className="mt-auto p-4 border-t border-border/50">
           <LoginArea className="flex w-full" />
+          <ThemeToggle />
         </div>
       </SidebarContent>
     </Sidebar>
@@ -147,7 +149,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
   // Mobile bottom navigation
   const MobileBottomNav = () => {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border/50 md:hidden safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border/50 md:hidden safe-area-bottom mx-2 mb-2 rounded-2xl shadow-lg shadow-primary/10">
         <nav className="flex items-center h-16 px-2">
           {/* Create a grid-like layout for even spacing */}
           <div className="flex items-center justify-between w-full">
@@ -162,7 +164,7 @@ export function AppNavigation({ children }: AppNavigationProps) {
                   className={cn(
                     "flex flex-col items-center justify-center gap-0.5 h-12 w-12 p-0 rounded-xl touch-target transition-all duration-200",
                     item.isActive 
-                      ? "text-primary bg-primary/15 scale-105" 
+                      ? "text-primary bg-primary/15 scale-105 glow-primary" 
                       : "text-muted-foreground hover:text-primary hover:bg-primary/10"
                   )}
                   asChild

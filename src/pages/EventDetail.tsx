@@ -44,7 +44,10 @@ import { CalendarOptions } from "@/components/CalendarOptions";
 import { decodeEventIdentifier } from "@/lib/nip19Utils";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
 import { TimezoneDisplay } from "@/components/TimezoneDisplay";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeUrl } from "@/lib/utils";
+import { getAvatarShape } from "@/lib/avatarShapes";
+import { useEventTheme } from "@/hooks/useEventTheme";
+import { EventThemeProvider } from "@/components/EventThemeProvider";
 import { isLiveEvent, getViewingUrl, getLiveEventStatus } from "@/lib/liveEventUtils";
 import { getPlatformIcon, isLiveEventType } from "@/lib/platformIcons";
 import { ParticipantDisplay } from "@/components/ParticipantDisplay";
@@ -109,6 +112,7 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
   const displayName =
     metadata?.name || metadata?.display_name || pubkey.slice(0, 8);
   const profileImage = metadata?.picture;
+  const shape = getAvatarShape(metadata);
 
   // Create npub address for the profile link
   const npub = nip19.npubEncode(pubkey);
@@ -119,7 +123,7 @@ function EventAuthor({ pubkey }: { pubkey: string }) {
         to={`/profile/${npub}`}
         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
       >
-        <Avatar className="h-6 w-6">
+        <Avatar className="h-6 w-6" shape={shape}>
           <AvatarImage src={profileImage} alt={displayName} />
           <AvatarFallback>{displayName.slice(0, 2)}</AvatarFallback>
         </Avatar>
@@ -181,6 +185,9 @@ export function EventDetail() {
 
   const event = singleEvent as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting;
 
+  // Extract event theme (Ditto themes via c/f/bg tags)
+  const eventTheme = useEventTheme(event);
+
   // Extract event participants from p tags (NIP-52)
   const eventParticipants = event?.tags
     .filter((tag) => tag[0] === "p")
@@ -204,16 +211,17 @@ export function EventDetail() {
   // Determine overall loading state
   const isLoading = isLoadingSingleEvent;
 
-  // Get most recent RSVP for each user
-  const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
-    const existingRSVP = acc.find((e) => e.pubkey === curr.pubkey);
-    if (!existingRSVP || curr.created_at > existingRSVP.created_at) {
-      // Remove any existing RSVP for this user
-      const filtered = acc.filter((e) => e.pubkey !== curr.pubkey);
-      return [...filtered, curr];
+  // Get most recent RSVP for each user using a Map for O(n) dedup
+  const latestRSVPs = (() => {
+    const byPubkey = new Map<string, EventRSVP>();
+    for (const rsvp of rsvpEvents) {
+      const existing = byPubkey.get(rsvp.pubkey);
+      if (!existing || rsvp.created_at > existing.created_at) {
+        byPubkey.set(rsvp.pubkey, rsvp);
+      }
     }
-    return acc;
-  }, [] as EventRSVP[]);
+    return Array.from(byPubkey.values());
+  })();
 
   // Group RSVPs by status
   const acceptedRSVPs = latestRSVPs.filter(
@@ -336,7 +344,7 @@ export function EventDetail() {
       const tags = [
         ["e", event.id],
         ["a", `${event.kind}:${event.pubkey}:${eventIdentifier}`],
-        ["d", Math.random().toString(36).substring(2)],
+        ["d", crypto.randomUUID()],
         ["status", rsvpStatus],
         ["p", event.pubkey],
       ];
@@ -364,12 +372,12 @@ export function EventDetail() {
     }
   };
 
-  return (
+  const content = (
     <div className="container max-w-4xl px-0 sm:px-4 py-2 sm:py-8">
       <Card className="rounded-none sm:rounded-lg">
         <div className="aspect-video w-full overflow-hidden">
           <img
-            src={imageUrl || "/default-calendar.png"}
+            src={sanitizeUrl(imageUrl) || "/default-calendar.png"}
             alt={
               event.tags.find((tag) => tag[0] === "title")?.[1] ||
               "Event image"
@@ -476,15 +484,14 @@ export function EventDetail() {
                     </Badge>
                   )}
                 </div>
-
-                {getViewingUrl(event) && (
+                {sanitizeUrl(getViewingUrl(event)) && (
                   <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
                     <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
                       🎥 Watch Live
                     </h4>
                     <div className="flex items-center gap-2">
                       <a
-                        href={getViewingUrl(event)!}
+                        href={sanitizeUrl(getViewingUrl(event))!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm break-all"
@@ -655,7 +662,7 @@ export function EventDetail() {
             <div className="border-t pt-4">
               <h3 className="font-semibold mb-2 flex items-center gap-2">🎟️ Ticket Information</h3>
               <p className="text-muted-foreground mb-4">
-                Price: {formatAmount(parseInt(price))}
+                Price: {formatAmount(parseInt(price, 10) || 0)}
               </p>
               {user ? (
                 <ZapButton
@@ -667,7 +674,7 @@ export function EventDetail() {
                   eventId={event.id}
                   eventKind={event.kind}
                   eventIdentifier={eventIdentifier}
-                  fixedAmount={parseInt(price)}
+                  fixedAmount={parseInt(price, 10) || 0}
                   buttonText="🎟️ Purchase Ticket"
                   className="w-full bg-gradient-to-r from-primary to-primary/70 text-primary-foreground font-bold shadow-lg hover:scale-105 transition-transform duration-200 relative overflow-hidden"
                 />
@@ -726,4 +733,11 @@ export function EventDetail() {
       )}
     </div>
   );
+
+  // Wrap in EventThemeProvider if the event has a custom theme
+  if (eventTheme) {
+    return <EventThemeProvider theme={eventTheme}>{content}</EventThemeProvider>;
+  }
+
+  return content;
 }

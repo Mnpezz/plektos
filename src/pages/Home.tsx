@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/collapsible";
 import { CalendarIcon, Search, X, Filter, ChevronDown, Grid3X3, Calendar as CalendarViewIcon, Map as MapIcon, CalendarDays, Users, PartyPopper } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeUrl } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORIES, type EventCategory } from "@/lib/eventCategories";
@@ -46,6 +46,7 @@ import { MapView } from "@/components/MapView";
 import { LocationSearch } from "@/components/LocationSearch";
 import { sortEventsByDistance, formatDistance, type Coordinates } from "@/lib/geolocation";
 import { formatAmount } from "@/lib/lightning";
+import { parseThemeFromTags, hslStringToHex } from "@/lib/themes";
 
 export function Home() {
   const [viewMode, setViewMode] = useState<"grid" | "calendar" | "map">("grid");
@@ -86,6 +87,49 @@ export function Home() {
 
   // Get metadata for all authors
   const { data: authorsMetadata = {} } = useAuthorsMetadata(uniquePubkeys);
+
+  // Pre-compute RSVP map: eventId/eventAddress -> deduplicated accepted RSVP count
+  // This avoids O(n*m) filtering inside the render loop (was H1: N+1 issue)
+  const rsvpCountMap = useMemo(() => {
+    const allRSVPs = (allEventsData || []).filter(
+      (e): e is EventRSVP => e.kind === 31925
+    );
+
+    // Group RSVPs by event reference (both e-tag and a-tag)
+    const rsvpsByRef = new Map<string, EventRSVP[]>();
+    for (const rsvp of allRSVPs) {
+      const eTag = rsvp.tags.find((tag) => tag[0] === "e")?.[1];
+      const aTag = rsvp.tags.find((tag) => tag[0] === "a")?.[1];
+      if (eTag) {
+        const existing = rsvpsByRef.get(eTag) || [];
+        existing.push(rsvp);
+        rsvpsByRef.set(eTag, existing);
+      }
+      if (aTag) {
+        const existing = rsvpsByRef.get(aTag) || [];
+        existing.push(rsvp);
+        rsvpsByRef.set(aTag, existing);
+      }
+    }
+
+    // Deduplicate per-pubkey (keep latest) and count accepted for each ref
+    const countMap = new Map<string, number>();
+    for (const [ref, rsvps] of rsvpsByRef) {
+      const byPubkey = new Map<string, EventRSVP>();
+      for (const rsvp of rsvps) {
+        const existing = byPubkey.get(rsvp.pubkey);
+        if (!existing || rsvp.created_at > existing.created_at) {
+          byPubkey.set(rsvp.pubkey, rsvp);
+        }
+      }
+      const accepted = Array.from(byPubkey.values()).filter(
+        (r) => r.tags.find((tag) => tag[0] === "status")?.[1] === "accepted"
+      );
+      countMap.set(ref, accepted.length);
+    }
+
+    return countMap;
+  }, [allEventsData]);
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [keywordFilter, setKeywordFilter] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -837,40 +881,15 @@ export function Home() {
               const price = event.tags.find((tag) => tag[0] === "price")?.[1];
               const lightningAddress = event.tags.find((tag) => tag[0] === "lud16")?.[1];
               const isPaidEvent = price && lightningAddress;
-
-              // Calculate attendee count from RSVPs
-              const eventAddress = event.tags.find((tag) => tag[0] === "d")?.[1]
-                ? `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1]}`
+              // Calculate attendee count from pre-computed RSVP map (O(1) lookup)
+              const dTag = event.tags.find((tag) => tag[0] === "d")?.[1];
+              const eventAddress = dTag
+                ? `${event.kind}:${event.pubkey}:${dTag}`
                 : null;
-              const eventId = event.id;
-
-              // Get RSVPs for this event from allEventsData
-              const rsvpEvents = (allEventsData || [])
-                .filter((e): e is EventRSVP => e.kind === 31925)
-                .filter((e) => {
-                  // Match by event ID (e tag) for current version
-                  const hasEventId = e.tags.some((tag) => tag[0] === "e" && tag[1] === eventId);
-                  // Match by address coordinate (a tag) for all versions of replaceable events
-                  const hasAddress = eventAddress && e.tags.some((tag) => tag[0] === "a" && tag[1] === eventAddress);
-                  return hasEventId || hasAddress;
-                });
-
-              // Get most recent RSVP for each user
-              const latestRSVPs = rsvpEvents.reduce((acc, curr) => {
-                const existingRSVP = acc.find((e) => e.pubkey === curr.pubkey);
-                if (!existingRSVP || curr.created_at > existingRSVP.created_at) {
-                  const filtered = acc.filter((e) => e.pubkey !== curr.pubkey);
-                  return [...filtered, curr];
-                }
-                return acc;
-              }, [] as EventRSVP[]);
-
-              // Count accepted RSVPs
-              const acceptedRSVPs = latestRSVPs.filter(
-                (e) => e.tags.find((tag) => tag[0] === "status")?.[1] === "accepted"
+              const attendeeCount = Math.max(
+                rsvpCountMap.get(event.id) || 0,
+                eventAddress ? (rsvpCountMap.get(eventAddress) || 0) : 0
               );
-              const attendeeCount = acceptedRSVPs.length;
-
               // Check if this is a live event
               const live = isLiveEvent(event);
               const inPerson = isInPersonEvent(event);
@@ -879,6 +898,10 @@ export function Home() {
 
               // Get platform icon for live events
               const platformIcon = isLiveEventType(event) ? getPlatformIcon(event) : null;
+
+              // Parse theme colors for themed card indicator
+              const cardTheme = parseThemeFromTags(event.tags);
+              const themePrimaryHex = cardTheme ? hslStringToHex(cardTheme.colors.primary) : undefined;
 
               // Add ref to last element for infinite scroll
               const isLastElement = index === filteredEvents.length - 1;
@@ -889,124 +912,130 @@ export function Home() {
                   ref={isLastElement ? lastEventElementRef : undefined}
                 >
                   <Link to={`/event/${eventIdentifier}`}>
-                    <Card className="h-full transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group">
-                      <div className="aspect-video w-full overflow-hidden relative">
-                        <img
-                          src={imageUrl || "/default-calendar.png"}
-                          alt={title}
-                          loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <Card
+                      className="h-full flex flex-col transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 overflow-hidden rounded-none sm:rounded-3xl border-2 border-transparent hover:border-primary/20 group"
+                      style={themePrimaryHex ? { '--theme-border': themePrimaryHex } as React.CSSProperties : undefined}
+                      onMouseEnter={themePrimaryHex ? (e) => { (e.currentTarget as HTMLElement).style.borderColor = themePrimaryHex; } : undefined}
+                      onMouseLeave={themePrimaryHex ? (e) => { (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; } : undefined}
+                    >
+                    <div className="aspect-video w-full overflow-hidden relative">
+                      <img
+                        src={sanitizeUrl(imageUrl) || "/default-calendar.png"}
+                        alt={title}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      
+                      {/* Live Event Badge */}
+                      {live && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge className={cn(
+                            "px-3 py-1 rounded-full text-xs font-semibold shadow-lg",
+                            liveStatus === 'live' 
+                              ? "bg-red-500 text-white animate-pulse" 
+                              : "bg-blue-500 text-white"
+                          )}>
+                            {liveStatus === 'live' ? (
+                              <>
+                                <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span>
+                                LIVE NOW
+                              </>
+                            ) : (
+                              <>
+                                <span className="w-2 h-2 bg-white rounded-full mr-1"></span>
+                                LIVE EVENT
+                              </>
+                            )}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {/* In-Person Badge */}
+                      {inPerson && !live && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge className="px-3 py-1 rounded-full text-xs font-semibold shadow-lg bg-green-500 text-white">
+                            📍 In-Person
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200 flex items-center gap-2">
+                        {platformIcon && (
+                          <span 
+                            className="text-xl flex-shrink-0" 
+                            title={`Live on ${platformIcon.name}`}
+                          >
+                            {platformIcon.icon}
+                          </span>
+                        )}
+                        <span className="flex-1">{title}</span>
+                      </CardTitle>
+                      {startTime && (
+                        <CardDescription className="text-sm font-medium">
+                          <TimezoneDisplay event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom} showLocalTime={false} />
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0 flex flex-col flex-1">
+                      {/* Description — fixed height so cards align */}
+                      <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed min-h-[2.5rem]">
+                        {description}
+                      </p>
 
-                        {/* Live Event Badge */}
-                        {live && (
-                          <div className="absolute top-3 left-3 z-10">
-                            <Badge className={cn(
-                              "px-3 py-1 rounded-full text-xs font-semibold shadow-lg",
-                              liveStatus === 'live'
-                                ? "bg-red-500 text-white animate-pulse"
-                                : "bg-blue-500 text-white"
-                            )}>
-                              {liveStatus === 'live' ? (
-                                <>
-                                  <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span>
-                                  LIVE NOW
-                                </>
-                              ) : (
-                                <>
-                                  <span className="w-2 h-2 bg-white rounded-full mr-1"></span>
-                                  LIVE EVENT
-                                </>
-                              )}
-                            </Badge>
-                          </div>
+                      {/* Badges — pushed to bottom with mt-auto */}
+                      <div className="mt-auto pt-3 flex flex-wrap items-center gap-1.5">
+                        {/* Price badge */}
+                        {isPaidEvent ? (
+                          <Badge variant="outline" className="rounded-full text-xs font-medium px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-300/50 dark:border-amber-700/50">
+                            {formatAmount(parseInt(price, 10) || 0)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="rounded-full text-xs font-medium px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-300/50 dark:border-emerald-700/50">
+                            Free
+                          </Badge>
                         )}
 
-                        {/* In-Person Badge */}
-                        {inPerson && !live && (
-                          <div className="absolute top-3 left-3 z-10">
-                            <Badge className="px-3 py-1 rounded-full text-xs font-semibold shadow-lg bg-green-500 text-white">
-                              📍 In-Person
-                            </Badge>
-                          </div>
+                        {/* Attendee badge */}
+                        {attendeeCount > 0 && (
+                          <Badge variant="outline" className="rounded-full text-xs font-medium px-2.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-300/50 dark:border-blue-700/50">
+                            {attendeeCount} going
+                          </Badge>
+                        )}
+
+                        {/* Live stream badge */}
+                        {streamingUrl && (
+                          <Badge variant="outline" className="rounded-full text-xs font-medium px-2.5 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/50 dark:border-violet-700/50">
+                            Live
+                          </Badge>
+                        )}
+
+                        {/* Location — only show as badge if no stream */}
+                        {!streamingUrl && location && (
+                          <Badge variant="outline" className="rounded-full text-xs font-medium px-2.5 py-0.5 text-muted-foreground border-border/50 max-w-[180px] truncate">
+                            {location}
+                          </Badge>
+                        )}
+
+                        {/* Distance badge */}
+                        {sortByDistance && event.distance !== undefined && (
+                          <Badge variant="secondary" className="rounded-full text-xs px-2.5 py-0.5 ml-auto">
+                            {formatDistance(event.distance)}
+                          </Badge>
+                        )}
+
+                        {/* Theme swatch dots */}
+                        {cardTheme && (
+                          <span className="flex items-center gap-0.5 ml-auto">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hslStringToHex(cardTheme.colors.background) }} />
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hslStringToHex(cardTheme.colors.primary) }} />
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hslStringToHex(cardTheme.colors.text) }} />
+                          </span>
                         )}
                       </div>
-                      <CardHeader className="p-4 sm:p-6">
-                        <CardTitle className="text-lg sm:text-xl line-clamp-2 group-hover:text-primary transition-colors duration-200 flex items-center gap-2">
-                          {platformIcon && (
-                            <span
-                              className="text-xl flex-shrink-0"
-                              title={`Live on ${platformIcon.name}`}
-                            >
-                              {platformIcon.icon}
-                            </span>
-                          )}
-                          <span className="flex-1">{title}</span>
-                        </CardTitle>
-                        {startTime && (
-                          <CardDescription className="text-sm font-medium">
-                            <TimezoneDisplay event={event as DateBasedEvent | TimeBasedEvent | LiveEvent | RoomMeeting | InteractiveRoom} showLocalTime={false} />
-                          </CardDescription>
-                        )}
-                      </CardHeader>
-                      <CardContent className="p-4 sm:p-6 pt-0">
-                        <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed">
-                          {description}
-                        </p>
-
-                        {/* Additional event details */}
-                        <div className="mt-3 space-y-2">
-                          {/* Pricing information */}
-                          {isPaidEvent ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-amber-50 dark:bg-amber-950/20 p-2 rounded-xl border border-amber-200 dark:border-amber-800">
-                              <span className="text-amber-600 dark:text-amber-400">🎟️</span>
-                              <span className="font-medium text-amber-800 dark:text-amber-200">
-                                {formatAmount(parseInt(price))}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-green-50 dark:bg-green-950/20 p-2 rounded-xl border border-green-200 dark:border-green-800">
-                              <span className="text-green-600 dark:text-green-400">🆓</span>
-                              <span className="font-medium text-green-800 dark:text-green-200">
-                                Free Event
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Attendee count (show for any count, but with different styling) */}
-                          {attendeeCount > 0 && (
-                            <div className={`flex items-center gap-2 text-sm text-muted-foreground p-2 rounded-xl border ${attendeeCount > 5
-                              ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                              : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
-                              }`}>
-                              <span className={`${attendeeCount > 5 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>👥</span>
-                              <span className={`font-medium ${attendeeCount > 5 ? 'text-green-800 dark:text-green-200' : 'text-blue-800 dark:text-blue-200'}`}>
-                                {attendeeCount} {attendeeCount === 1 ? 'person' : 'people'} going
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Live stream or location */}
-                          {streamingUrl ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded-xl border border-blue-200 dark:border-blue-800">
-                              <span className="text-blue-600 dark:text-blue-400">🎥</span>
-                              <span className="font-medium text-blue-800 dark:text-blue-200">Live Stream</span>
-                            </div>
-                          ) : location && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-xl">
-                              <span className="text-primary">📍</span>
-                              <span className="font-medium">{location}</span>
-                              {sortByDistance && event.distance !== undefined && (
-                                <Badge variant="secondary" className="ml-auto">
-                                  {formatDistance(event.distance)} away
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    </CardContent>
+                  </Card>
                   </Link>
                 </div>
               );
