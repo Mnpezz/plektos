@@ -303,3 +303,38 @@ export async function rejectEventFromCalendar(
     });
   });
 }
+
+export function useAllCalendars() {
+  const { nostr } = useNostr();
+
+  return useQuery({
+    queryKey: ['calendars', 'all'],
+    enabled: !!nostr,
+    queryFn: async () => {
+      const events = await nostr.query([
+        {
+          kinds: [31924],
+          limit: 250
+        }
+      ]);
+
+      const parsed = events
+        .map(parseCalendarEvent)
+        .filter((c): c is CalendarData => c !== null);
+
+      // Deduplicate replaceable events (kind 31924) by author and d tag, keeping the newest
+      parsed.sort((a, b) => b.created_at - a.created_at);
+      const uniqueCalendars: CalendarData[] = [];
+      const seenCoordinates = new Set<string>();
+      for (const cal of parsed) {
+        const coordinate = `${cal.pubkey}:${cal.d}`;
+        if (!seenCoordinates.has(coordinate)) {
+          seenCoordinates.add(coordinate);
+          uniqueCalendars.push(cal);
+        }
+      }
+
+      return uniqueCalendars;
+    }
+  });
+}

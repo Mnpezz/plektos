@@ -370,12 +370,11 @@ export function Profile() {
       {/* Separator between profile info and events */}
       <div className="py-2"><hr className="border-border" /></div>
 
-      {/* Events Section: Tabs for Created and RSVP'd Events */}
       <Tabs defaultValue="created" className="w-full">
-        <TabsList className="flex flex-wrap gap-2 mb-6">
-          <TabsTrigger value="created" className="flex items-center gap-2"><PartyPopper className="h-5 w-5 text-primary" /> Created Events</TabsTrigger>
-          <TabsTrigger value="rsvpd" className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> RSVP'd Events</TabsTrigger>
-          <TabsTrigger value="calendars" className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /> My Calendars</TabsTrigger>
+        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap h-auto p-1 mb-6 gap-1 md:gap-2">
+          <TabsTrigger value="created" className="flex items-center gap-2 shrink-0"><PartyPopper className="h-5 w-5 text-primary" /> Created Events</TabsTrigger>
+          <TabsTrigger value="rsvpd" className="flex items-center gap-2 shrink-0"><Users className="h-5 w-5 text-primary" /> RSVP'd Events</TabsTrigger>
+          <TabsTrigger value="calendars" className="flex items-center gap-2 shrink-0"><CalendarDays className="h-5 w-5 text-primary" /> My Calendars</TabsTrigger>
         </TabsList>
         <TabsContent value="created">
           {isLoadingCreated ? (

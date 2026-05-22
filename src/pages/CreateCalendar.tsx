@@ -11,6 +11,7 @@ import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from "sonner";
 import { CalendarDays, Rocket, Target, FileText, Hash, MapPin, Filter } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { nip19 } from "nostr-tools";
 
 export function CreateCalendar() {
   const navigate = useNavigate();
@@ -79,9 +80,7 @@ export function CreateCalendar() {
           // Invalidate calendar caches so it shows up immediately
           queryClient.invalidateQueries({ queryKey: ['calendars'] });
           // Go to user's profile to see the new calendar in their list
-          const npub = import("nostr-tools").then(({ nip19 }) => {
-            navigate(`/profile/${nip19.npubEncode(user.pubkey)}`);
-          });
+          navigate(`/profile/${nip19.npubEncode(user.pubkey)}`);
         },
         onError: (error) => {
           console.error("Error creating calendar:", error);
@@ -253,7 +252,7 @@ export function CreateCalendar() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Rocket className="h-5 w-5 text-primary" /> Create Calendar
+                <Rocket className="h-5 w-5 text-white" /> Create Calendar
               </div>
             )}
           </Button>

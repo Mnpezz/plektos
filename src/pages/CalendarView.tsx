@@ -422,12 +422,12 @@ export function CalendarView() {
         )}
 
         {isOwner && (
-          <div className="bg-muted/30 border-t p-4 flex justify-end gap-3">
+          <div className="bg-muted/30 border-t p-4 flex flex-col sm:flex-row justify-end gap-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/edit-calendar/${calendarCoordinate}`)}
-              className="transition-colors"
+              className="transition-colors w-full sm:w-auto"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Calendar
@@ -436,7 +436,7 @@ export function CalendarView() {
               variant="outline"
               size="sm"
               onClick={() => setIsDeleteDialogOpen(true)}
-              className="text-destructive hover:bg-destructive hover:text-white transition-colors"
+              className="text-destructive hover:bg-destructive hover:text-white transition-colors w-full sm:w-auto"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete Calendar
@@ -451,8 +451,8 @@ export function CalendarView() {
             <MapPin className="h-6 w-6 text-primary" />
             Upcoming Events
           </h2>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <div className="flex bg-muted/50 p-1 rounded-full border">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto self-start sm:self-auto">
+            <div className="flex bg-muted/50 p-1 rounded-full border shrink-0">
               <Button
                 variant={viewMode === "list" && !showPending ? "secondary" : "ghost"}
                 size="sm"

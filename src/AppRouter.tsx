@@ -9,6 +9,7 @@ const CreateEvent = lazy(() => import("@/pages/CreateEvent").then(m => ({ defaul
 const CreateCalendar = lazy(() => import("@/pages/CreateCalendar").then(m => ({ default: m.CreateCalendar })));
 const EditCalendar = lazy(() => import("@/pages/EditCalendar").then(m => ({ default: m.EditCalendar })));
 const CalendarView = lazy(() => import("@/pages/CalendarView").then(m => ({ default: m.CalendarView })));
+const CalendarsFeed = lazy(() => import("@/pages/CalendarsFeed").then(m => ({ default: m.CalendarsFeed })));
 const Profile = lazy(() => import("@/pages/Profile").then(m => ({ default: m.Profile })));
 const MyTickets = lazy(() => import("@/pages/MyTickets").then(m => ({ default: m.MyTickets })));
 const SocialFeed = lazy(() => import("@/pages/SocialFeed").then(m => ({ default: m.SocialFeed })));
@@ -37,6 +38,7 @@ export default function AppRouter() {
         <Route path="/create-calendar" element={<CreateCalendar />} />
         <Route path="/edit-calendar/:naddr" element={<EditCalendar />} />
         <Route path="/calendar/:naddr" element={<CalendarView />} />
+        <Route path="/calendars" element={<CalendarsFeed />} />
         <Route path="/profile/:npub" element={<Profile />} />
         <Route path="/tickets" element={<MyTickets />} />
         <Route path="/feed" element={<SocialFeed />} />
